@@ -55,7 +55,7 @@ func (app *App) runServe(ctx context.Context, arguments []string) error {
 		return fmt.Errorf("load Acta journal: %w", err)
 	}
 
-	listener, err := ListenUnix(app.config.SocketPath)
+	listener, err := ListenServiceSocket(app.config.SocketPath)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Acta local chronicle socket
+
+[Socket]
+ListenStream=%t/acta/acta.sock
+Accept=no
+FileDescriptorName=acta
+SocketMode=0600
+DirectoryMode=0700
+RemoveOnStop=yes
+Service=acta.service
+
+[Install]
+WantedBy=sockets.target

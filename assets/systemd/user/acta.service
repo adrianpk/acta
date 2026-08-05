@@ -1,0 +1,13 @@
+[Unit]
+Description=Acta local chronicle service
+Requires=acta.socket
+After=acta.socket
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/env acta serve
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+TimeoutStopSec=10s
