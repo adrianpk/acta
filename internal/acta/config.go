@@ -1,3 +1,4 @@
+// Package acta implements the local Acta journal and its domain contracts.
 package acta
 
 import (
@@ -31,6 +32,7 @@ func ConfigFromHome(home string) (Config, error) {
 	}
 
 	filesRoot := filepath.Join(filepath.Clean(home), ".acta")
+
 	return Config{
 		ConfigRoot:  filepath.Join(filepath.Clean(home), ".config", "acta"),
 		FilesRoot:   filesRoot,

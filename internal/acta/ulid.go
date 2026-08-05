@@ -23,14 +23,18 @@ func NewEventID(recordedAt time.Time, entropy io.Reader) (EventID, error) {
 	if milliseconds < 0 || milliseconds > (1<<48)-1 {
 		return "", fmt.Errorf("generate event ID: timestamp is outside the ULID range")
 	}
+
 	if entropy == nil {
 		entropy = rand.Reader
 	}
 
-	var data [16]byte
-	var timestamp [8]byte
+	var (
+		data      [16]byte
+		timestamp [8]byte
+	)
 	binary.BigEndian.PutUint64(timestamp[:], uint64(milliseconds))
 	copy(data[:6], timestamp[2:])
+
 	if _, err := io.ReadFull(entropy, data[6:]); err != nil {
 		return "", fmt.Errorf("generate event ID entropy: %w", err)
 	}
@@ -44,14 +48,17 @@ func (id EventID) Validate() error {
 	if len(value) != 26 {
 		return fmt.Errorf("ULID must contain 26 characters")
 	}
+
 	if value[0] > '7' {
 		return fmt.Errorf("ULID exceeds 128 bits")
 	}
+
 	for _, character := range value {
 		if !strings.ContainsRune(crockfordBase32, character) {
 			return fmt.Errorf("ULID contains invalid character %q", character)
 		}
 	}
+
 	return nil
 }
 
@@ -63,6 +70,7 @@ func encodeULID(data [16]byte) string {
 
 	for index := len(encoded) - 1; index >= 0; index-- {
 		quotient.QuoRem(quotient, base32Radix, remainder)
+
 		encoded[index] = crockfordBase32[remainder.Int64()]
 	}
 

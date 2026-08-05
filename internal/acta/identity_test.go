@@ -2,15 +2,17 @@ package acta
 
 import "testing"
 
+type remoteNormalizationCase struct {
+	name    string
+	remote  string
+	want    string
+	wantErr bool
+}
+
 func TestNormalizeRepositoryRemote(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		remote  string
-		want    string
-		wantErr bool
-	}{
+	tests := []remoteNormalizationCase{
 		{
 			name:   "scp syntax",
 			remote: "git@example.test:team/example.git",
@@ -47,20 +49,29 @@ func TestNormalizeRepositoryRemote(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := NormalizeRepositoryRemote(test.remote)
-			if test.wantErr {
-				if err == nil {
-					t.Fatal("expected an error")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("NormalizeRepositoryRemote() error = %v", err)
-			}
-			if got != test.want {
-				t.Fatalf("NormalizeRepositoryRemote() = %q, want %q", got, test.want)
-			}
+			assertNormalizedRepositoryRemote(t, test)
 		})
+	}
+}
+
+func assertNormalizedRepositoryRemote(t *testing.T, test remoteNormalizationCase) {
+	t.Helper()
+
+	got, err := NormalizeRepositoryRemote(test.remote)
+	if test.wantErr {
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+
+		return
+	}
+
+	if err != nil {
+		t.Fatalf("NormalizeRepositoryRemote() error = %v", err)
+	}
+
+	if got != test.want {
+		t.Fatalf("NormalizeRepositoryRemote() = %q, want %q", got, test.want)
 	}
 }
 
@@ -110,11 +121,14 @@ func TestNewRepositoryReference(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("NewRepositoryReference() error = %v", err)
 			}
+
 			if got != test.want {
 				t.Fatalf("NewRepositoryReference() = %#v, want %#v", got, test.want)
 			}

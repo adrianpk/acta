@@ -15,7 +15,9 @@ func NewRepositoryReference(root, remote string) (RepositoryReference, error) {
 	if !filepath.IsAbs(root) {
 		return RepositoryReference{}, fmt.Errorf("create repository reference: root must be absolute")
 	}
+
 	root = filepath.Clean(root)
+
 	name := filepath.Base(root)
 	if name == string(filepath.Separator) || name == "." {
 		return RepositoryReference{}, fmt.Errorf("create repository reference: root must identify a repository directory")
@@ -29,6 +31,7 @@ func NewRepositoryReference(root, remote string) (RepositoryReference, error) {
 		if err != nil {
 			return RepositoryReference{}, err
 		}
+
 		reference.Identity = normalized
 		reference.Remote = normalized
 	}
@@ -36,6 +39,7 @@ func NewRepositoryReference(root, remote string) (RepositoryReference, error) {
 	if err := reference.Validate(); err != nil {
 		return RepositoryReference{}, err
 	}
+
 	return reference, nil
 }
 
@@ -45,11 +49,13 @@ func NormalizeRepositoryRemote(raw string) (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("normalize repository remote: remote is required")
 	}
+
 	if !strings.Contains(raw, "://") {
 		converted, ok := convertSCPLikeRemote(raw)
 		if !ok {
 			return "", fmt.Errorf("normalize repository remote: unsupported remote syntax")
 		}
+
 		raw = converted
 	}
 
@@ -57,34 +63,34 @@ func NormalizeRepositoryRemote(raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("normalize repository remote: %w", err)
 	}
+
+	return normalizeRepositoryURL(parsed)
+}
+
+func normalizeRepositoryURL(parsed *url.URL) (string, error) {
 	parsed.Scheme = strings.ToLower(parsed.Scheme)
 	switch parsed.Scheme {
 	case "ssh", "git", "http", "https":
 	default:
 		return "", fmt.Errorf("normalize repository remote: unsupported scheme %q", parsed.Scheme)
 	}
+
 	if parsed.Hostname() == "" {
 		return "", fmt.Errorf("normalize repository remote: host is required")
 	}
 
 	parsed.Host = canonicalHost(parsed.Hostname(), parsed.Port())
-	if parsed.Scheme == "ssh" || parsed.Scheme == "git" {
-		if parsed.User != nil && parsed.User.Username() != "" {
-			parsed.User = url.User(parsed.User.Username())
-		} else {
-			parsed.User = nil
-		}
-	} else {
-		parsed.User = nil
-	}
+	parsed.User = normalizedRepositoryUser(parsed.Scheme, parsed.User)
 
 	repositoryPath := path.Clean("/" + strings.TrimLeft(parsed.Path, "/"))
 	if repositoryPath == "/" || repositoryPath == "/." {
 		return "", fmt.Errorf("normalize repository remote: repository path is required")
 	}
+
 	if !strings.HasSuffix(repositoryPath, ".git") {
 		repositoryPath += ".git"
 	}
+
 	parsed.Path = repositoryPath
 	parsed.RawPath = ""
 	parsed.RawQuery = ""
@@ -94,16 +100,31 @@ func NormalizeRepositoryRemote(raw string) (string, error) {
 	return parsed.String(), nil
 }
 
+func normalizedRepositoryUser(scheme string, user *url.Userinfo) *url.Userinfo {
+	if scheme != "ssh" && scheme != "git" {
+		return nil
+	}
+
+	if user == nil || user.Username() == "" {
+		return nil
+	}
+
+	return url.User(user.Username())
+}
+
 func convertSCPLikeRemote(raw string) (string, bool) {
 	separator := strings.IndexByte(raw, ':')
 	if separator <= 0 || separator == len(raw)-1 {
 		return "", false
 	}
+
 	authority := raw[:separator]
+
 	repositoryPath := raw[separator+1:]
 	if strings.ContainsAny(authority, "/\\") || strings.HasPrefix(repositoryPath, "//") {
 		return "", false
 	}
+
 	return "ssh://" + authority + "/" + strings.TrimLeft(repositoryPath, "/"), true
 }
 
@@ -112,8 +133,10 @@ func canonicalHost(host, port string) string {
 	if port != "" {
 		return net.JoinHostPort(host, port)
 	}
+
 	if strings.Contains(host, ":") {
 		return "[" + host + "]"
 	}
+
 	return host
 }

@@ -40,11 +40,14 @@ func TestConfigFromHome(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("ConfigFromHome() error = %v", err)
 			}
+
 			if got != test.want {
 				t.Fatalf("ConfigFromHome() = %#v, want %#v", got, test.want)
 			}

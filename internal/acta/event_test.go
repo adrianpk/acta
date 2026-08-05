@@ -6,24 +6,31 @@ import (
 	"time"
 )
 
+type eventValidationCase struct {
+	name    string
+	change  func(*Event)
+	wantErr bool
+}
+
 func TestEventValidate(t *testing.T) {
 	t.Parallel()
 
 	valid := validMilestoneEvent()
-	tests := []struct {
-		name    string
-		change  func(*Event)
-		wantErr bool
-	}{
+
+	tests := append(commonEventValidationCases(), typeEventValidationCases()...)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertEventValidation(t, valid, test)
+		})
+	}
+}
+
+func commonEventValidationCases() []eventValidationCase {
+	return []eventValidationCase{
 		{name: "milestone"},
-		{
-			name: "correction",
-			change: func(event *Event) {
-				event.Type = EventTypeCorrection
-				event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
-				event.Reason = "Clarify the affected runtime"
-			},
-		},
 		{
 			name:    "schema",
 			change:  func(event *Event) { event.SchemaVersion = "acta/v2" },
@@ -69,6 +76,19 @@ func TestEventValidate(t *testing.T) {
 			change:  func(event *Event) { event.Note = strings.Repeat("x", maxNoteLength+1) },
 			wantErr: true,
 		},
+	}
+}
+
+func typeEventValidationCases() []eventValidationCase {
+	return []eventValidationCase{
+		{
+			name: "correction",
+			change: func(event *Event) {
+				event.Type = EventTypeCorrection
+				event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
+				event.Reason = "Clarify the affected runtime"
+			},
+		},
 		{
 			name:    "milestone target",
 			change:  func(event *Event) { event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST" },
@@ -91,25 +111,26 @@ func TestEventValidate(t *testing.T) {
 			wantErr: true,
 		},
 	}
+}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+func assertEventValidation(t *testing.T, valid Event, test eventValidationCase) {
+	t.Helper()
 
-			event := valid
-			execution := *valid.Execution
-			event.Execution = &execution
-			if test.change != nil {
-				test.change(&event)
-			}
-			err := event.Validate()
-			if test.wantErr && err == nil {
-				t.Fatal("expected an error")
-			}
-			if !test.wantErr && err != nil {
-				t.Fatalf("Validate() error = %v", err)
-			}
-		})
+	event := valid
+	execution := *valid.Execution
+
+	event.Execution = &execution
+	if test.change != nil {
+		test.change(&event)
+	}
+
+	err := event.Validate()
+	if test.wantErr && err == nil {
+		t.Fatal("expected an error")
+	}
+
+	if !test.wantErr && err != nil {
+		t.Fatalf("Validate() error = %v", err)
 	}
 }
 

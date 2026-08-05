@@ -41,23 +41,33 @@ func TestNewEventID(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := NewEventID(test.timestamp, strings.NewReader(test.entropy))
-			if test.wantErr {
-				if err == nil {
-					t.Fatal("expected an error")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("NewEventID() error = %v", err)
-			}
-			if got != test.want {
-				t.Fatalf("NewEventID() = %q, want %q", got, test.want)
-			}
-			if err := got.Validate(); err != nil {
-				t.Fatalf("generated ID is invalid: %v", err)
-			}
+			assertNewEventID(t, test.timestamp, test.entropy, test.want, test.wantErr)
 		})
+	}
+}
+
+func assertNewEventID(t *testing.T, timestamp time.Time, entropy string, want EventID, wantErr bool) {
+	t.Helper()
+
+	got, err := NewEventID(timestamp, strings.NewReader(entropy))
+	if wantErr {
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+
+		return
+	}
+
+	if err != nil {
+		t.Fatalf("NewEventID() error = %v", err)
+	}
+
+	if got != want {
+		t.Fatalf("NewEventID() = %q, want %q", got, want)
+	}
+
+	if err := got.Validate(); err != nil {
+		t.Fatalf("generated ID is invalid: %v", err)
 	}
 }
 
@@ -65,14 +75,17 @@ func TestNewEventIDSortsByTime(t *testing.T) {
 	t.Parallel()
 
 	entropy := strings.Repeat("\x00", 10)
+
 	first, err := NewEventID(time.UnixMilli(1).UTC(), strings.NewReader(entropy))
 	if err != nil {
 		t.Fatalf("generate first ID: %v", err)
 	}
+
 	second, err := NewEventID(time.UnixMilli(2).UTC(), strings.NewReader(entropy))
 	if err != nil {
 		t.Fatalf("generate second ID: %v", err)
 	}
+
 	if first >= second {
 		t.Fatalf("IDs are not time sortable: %q >= %q", first, second)
 	}
@@ -101,6 +114,7 @@ func TestEventIDValidate(t *testing.T) {
 			if test.wantErr && err == nil {
 				t.Fatal("expected an error")
 			}
+
 			if !test.wantErr && err != nil {
 				t.Fatalf("Validate() error = %v", err)
 			}
