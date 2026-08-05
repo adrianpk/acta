@@ -9,7 +9,7 @@ Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
 Progress: 3 of 4 slices completed
 Active slice: Slice 4, Integrity and Operational Completion
-Active slice status: active
+Active slice status: reviewing
 
 ## Execution Gate
 
@@ -23,7 +23,7 @@ approval state is committed to `dev`.
 | Slice 1: Durable Journal Core | delivered | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
 | Slice 2: Local Service and Recording | delivered | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
 | Slice 3: Bounded Retrieval and Corrections | delivered | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
-| Slice 4: Integrity and Operational Completion | active | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
+| Slice 4: Integrity and Operational Completion | reviewing | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
 
 ## Slice 1 Tasks
 
@@ -54,9 +54,9 @@ approval state is committed to `dev`.
 
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
-| `T4.1` | Implement active and full verification with exact corruption diagnostics. | pending | pending | pending |
-| `T4.2` | Add `verify` operations and the daily per-user timer with monthly full-verification behavior. | pending | pending | pending |
-| `T4.3` | Complete end-to-end recovery, concurrency, IPC, self-contained correction, execution filtering, verification, and restart tests. | pending | pending | pending |
+| `T4.1` | Implement active and full verification with exact corruption diagnostics. | completed | `7095d38` | UTF-8, framing, schema, field, placement, identity, correction, line, and byte-offset tests pass. |
+| `T4.2` | Add `verify` operations and the daily per-user timer with monthly full-verification behavior. | completed | `e574068`, `0514785`, `cfe6751` | CLI, service, degraded startup, persistent monthly state, timer asset, and systemd unit tests pass. |
+| `T4.3` | Complete end-to-end recovery, concurrency, IPC, self-contained correction, execution filtering, verification, and restart tests. | completed | `01994dc` | Integrated lifecycle acceptance tests and race tests pass. |
 
 ## Validation Log
 
@@ -75,6 +75,11 @@ approval state is committed to `dev`.
 - 2026-08-05: Slice 3 `go test -race ./internal/acta` passed.
 - 2026-08-05: Slice 3 `go test ./...` passed.
 - 2026-08-05: Slice 3 `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket` passed.
+- 2026-08-05: Slice 4 `make lint-strict` passed with 0 issues.
+- 2026-08-05: Slice 4 `go test ./internal/acta` passed.
+- 2026-08-05: Slice 4 `go test -race ./internal/acta` passed.
+- 2026-08-05: Slice 4 `go test ./...` passed.
+- 2026-08-05: Slice 4 `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket assets/systemd/user/acta-verify.service assets/systemd/user/acta-verify.timer` passed.
 
 ## Blockers
 
@@ -99,3 +104,4 @@ None recorded.
 - 2026-08-05: Opened Slice 3 pull request `#3` against `dev`.
 - 2026-08-05: Verified pull request `#3` merged into `dev`, delivered Slice 3,
   and activated Slice 4.
+- 2026-08-05: Completed T4.1, T4.2, and T4.3 and moved Slice 4 to review.
