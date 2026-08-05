@@ -1,7 +1,7 @@
 ---
 id: TKT-20260805181411
 title: Install the strict Go linting scaffold
-status: reviewing
+status: solved
 kind: follow_up
 severity: low
 priority: normal
@@ -11,6 +11,8 @@ source: chat
 reported_at: 2026-08-05T18:14:11Z
 started_at: 2026-08-05T18:14:11Z
 reviewed_at: 2026-08-05T18:26:47Z
+closed_at: 2026-08-05T18:30:57Z
+resolution: fixed
 branch: feat/acta-journal-core
 pr: 1
 commits:
