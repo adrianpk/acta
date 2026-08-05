@@ -1,0 +1,12 @@
+[Unit]
+Description=Verify the Acta local chronicle
+Requires=acta.socket
+After=acta.socket
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/env acta verify --scheduled
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes

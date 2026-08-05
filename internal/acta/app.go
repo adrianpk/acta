@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"time"
 )
 
 // App owns process-level command dispatch and dependency assembly.
@@ -16,6 +17,7 @@ type App struct {
 	stderr           io.Writer
 	workingDirectory func() (string, error)
 	inspector        *GitInspector
+	now              func() time.Time
 }
 
 // NewApp constructs the executable application without performing IO.
@@ -26,13 +28,14 @@ func NewApp(config Config, stdout, stderr io.Writer) *App {
 		stderr:           stderr,
 		workingDirectory: os.Getwd,
 		inspector:        NewGitInspector(),
+		now:              time.Now,
 	}
 }
 
 // Run executes one CLI command.
 func (app *App) Run(ctx context.Context, arguments []string) error {
 	if len(arguments) == 0 {
-		return fmt.Errorf("usage: acta <correct|record|report|search|serve|show>")
+		return fmt.Errorf("usage: acta <correct|record|report|search|serve|show|verify>")
 	}
 
 	switch arguments[0] {
@@ -48,6 +51,8 @@ func (app *App) Run(ctx context.Context, arguments []string) error {
 		return app.runServe(ctx, arguments[1:])
 	case "show":
 		return app.runShow(ctx, arguments[1:])
+	case "verify":
+		return app.runVerify(ctx, arguments[1:])
 	default:
 		return fmt.Errorf("unknown command %q", arguments[0])
 	}

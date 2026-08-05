@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -161,6 +162,15 @@ func TestServiceHandlesRetrievalAndCorrection(t *testing.T) {
 	if correctResult.Event.TargetID != fixture.correction.ID {
 		t.Fatalf("correct result = %#v", correctResult)
 	}
+
+	verifyResponse := handleTestRequest(t, service, "verify", VerifyParams{Full: true})
+
+	var verifyResult VerifyResult
+	decodeTestResult(t, verifyResponse, &verifyResult)
+
+	if verifyResult.Scope != VerifyScopeFull || verifyResult.EventCount != 5 {
+		t.Fatalf("verify result = %#v", verifyResult)
+	}
 }
 
 func TestServiceMapsRetrievalAndCorrectionErrors(t *testing.T) {
@@ -222,6 +232,25 @@ func TestServiceMapsRetrievalAndCorrectionErrors(t *testing.T) {
 				t.Fatalf("Handle() response = %#v, want code %q", response, test.wantCode)
 			}
 		})
+	}
+}
+
+func TestServiceReturnsExactVerificationFailure(t *testing.T) {
+	t.Parallel()
+
+	journal, _, event := newSingleEventVerifier(t)
+	segmentPath := SegmentPath(journal.config.JournalRoot, event.RecordedAt)
+	corruptFirstByte(t, segmentPath)
+
+	service := NewService(NewRecorder(journal))
+	response := handleTestRequest(t, service, "verify", VerifyParams{Full: true})
+
+	if response.OK || response.Error == nil || response.Error.Code != ErrorJournalCorrupt {
+		t.Fatalf("Handle() response = %#v", response)
+	}
+
+	if !strings.Contains(response.Error.Message, segmentPath) || !strings.Contains(response.Error.Message, "byte 0") {
+		t.Fatalf("verification message = %q", response.Error.Message)
 	}
 }
 

@@ -156,6 +156,7 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 	}
 
 	assertAppReportEndToEnd(t, config, corrected.Event)
+	assertAppVerifyEndToEnd(t, config)
 }
 
 func assertAppReportEndToEnd(t *testing.T, config Config, event Event) {
@@ -176,6 +177,24 @@ func assertAppReportEndToEnd(t *testing.T, config Config, event Event) {
 	})
 	if !strings.Contains(humanReport, reportFrom) || !strings.Contains(humanReport, event.Repository.Name) {
 		t.Fatalf("human report = %q", humanReport)
+	}
+}
+
+func assertAppVerifyEndToEnd(t *testing.T, config Config) {
+	t.Helper()
+
+	verifyOutput := runTestAppCommand(t, config, []string{"verify", "--full", "--json"})
+
+	var result VerifyResult
+	decodeCLIResult(t, verifyOutput, &result)
+
+	if result.Scope != VerifyScopeFull || result.SegmentCount != 1 || result.EventCount != 2 {
+		t.Fatalf("verify result = %#v", result)
+	}
+
+	humanOutput := runTestAppCommand(t, config, []string{"verify"})
+	if !strings.Contains(humanOutput, "verified active journal") {
+		t.Fatalf("human verify output = %q", humanOutput)
 	}
 }
 

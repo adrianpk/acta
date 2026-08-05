@@ -12,6 +12,7 @@ type Service struct {
 	recorder  *Recorder
 	journal   *Journal
 	corrector *Corrector
+	verifier  *Verifier
 }
 
 // NewService constructs a service without performing IO.
@@ -20,6 +21,7 @@ func NewService(recorder *Recorder) *Service {
 		recorder:  recorder,
 		journal:   recorder.journal,
 		corrector: NewCorrector(recorder.journal),
+		verifier:  NewVerifier(recorder.journal),
 	}
 }
 
@@ -36,6 +38,8 @@ func (service *Service) Handle(ctx context.Context, request Request) Response {
 		return service.handleSearch(ctx, request.Params)
 	case "show":
 		return service.handleShow(ctx, request.Params)
+	case "verify":
+		return service.handleVerify(ctx, request.Params)
 	default:
 		return ErrorResponse(ErrorUnknownOperation, "unknown operation")
 	}
@@ -111,6 +115,20 @@ func (service *Service) handleCorrect(ctx context.Context, encoded json.RawMessa
 	return SuccessResponse(result)
 }
 
+func (service *Service) handleVerify(ctx context.Context, encoded json.RawMessage) Response {
+	var params VerifyParams
+	if err := decodeOperationParams(encoded, &params); err != nil {
+		return ErrorResponse(ErrorInvalidRequest, "decode verify params")
+	}
+
+	result, err := service.verifier.Verify(ctx, params)
+	if err != nil {
+		return verificationErrorResponse(err)
+	}
+
+	return SuccessResponse(result)
+}
+
 func decodeOperationParams(encoded json.RawMessage, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
@@ -158,5 +176,16 @@ func correctionErrorResponse(err error) Response {
 		return ErrorResponse(ErrorInvalidEvent, err.Error())
 	default:
 		return recordErrorResponse(err)
+	}
+}
+
+func verificationErrorResponse(err error) Response {
+	switch {
+	case errors.Is(err, ErrJournalCorrupt):
+		return ErrorResponse(ErrorJournalCorrupt, err.Error())
+	case errors.Is(err, ErrJournalNotLoaded):
+		return ErrorResponse(ErrorJournalUnavailable, "journal is unavailable")
+	default:
+		return ErrorResponse(ErrorJournalUnavailable, "journal verification failed")
 	}
 }
