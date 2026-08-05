@@ -1,6 +1,6 @@
 # Slice 2: Local Service and Recording
 
-Status: reviewing
+Status: delivered
 Delivery set: Acta Initial Local Chronicle
 Plan: `ops/default/plan/acta-initial-local-chronicle.md`
 Tracker: `ops/default/tracker/acta-initial-local-chronicle.md`
