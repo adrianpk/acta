@@ -1,15 +1,15 @@
 # Acta Initial Local Chronicle Tracker
 
-Status: active
+Status: completed
 Approval: approved
 Delivery set: Acta Initial Local Chronicle
 Slice strategy: layered
 Plan: `ops/default/plan/acta-initial-local-chronicle.md`
 Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
-Progress: 3 of 4 slices completed
-Active slice: Slice 4, Integrity and Operational Completion
-Active slice status: reviewing
+Progress: 4 of 4 slices completed
+Active slice: None
+Active slice status: none
 
 ## Execution Gate
 
@@ -23,7 +23,7 @@ approval state is committed to `dev`.
 | Slice 1: Durable Journal Core | delivered | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
 | Slice 2: Local Service and Recording | delivered | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
 | Slice 3: Bounded Retrieval and Corrections | delivered | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
-| Slice 4: Integrity and Operational Completion | reviewing | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
+| Slice 4: Integrity and Operational Completion | delivered | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
 
 ## Slice 1 Tasks
 
@@ -106,3 +106,5 @@ None recorded.
   and activated Slice 4.
 - 2026-08-05: Completed T4.1, T4.2, and T4.3 and moved Slice 4 to review.
 - 2026-08-05: Opened Slice 4 pull request `#4` against `dev`.
+- 2026-08-05: Verified pull request `#4` merged into `dev`, delivered Slice 4,
+  and completed the four-slice delivery set.
