@@ -1,7 +1,7 @@
 ---
 id: TKT-20260805181408
 title: Write a clear project README
-status: in_progress
+status: solved
 kind: follow_up
 severity: low
 priority: normal
@@ -11,7 +11,11 @@ source: chat
 reported_at: 2026-08-05T18:14:08Z
 ready_at: 2026-08-05T20:00:15Z
 started_at: 2026-08-05T20:00:15Z
-commits: []
+reviewed_at: 2026-08-05T20:03:44Z
+closed_at: 2026-08-05T20:03:44Z
+resolution: fixed
+commits:
+  - 805e94bfb5322b594c466adf9bdfd5e4239901d7
 ---
 
 # Write a clear project README
@@ -41,3 +45,11 @@ implementation detail.
 - Use a trivial punctuation-only commit as an example of an event that should
   not be recorded.
 - Link to the detailed user guide when that documentation exists.
+
+## Validation
+
+- `make lint-strict` completed with zero issues.
+- `go test ./...` passed.
+- `git diff --check` passed.
+- The README and ticket contain no personal repository paths, remotes, hosts,
+  or ports.
