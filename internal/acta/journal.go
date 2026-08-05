@@ -387,7 +387,7 @@ func validateEventAgainstIndex(event Event, events map[EventID]Event, milestones
 		}
 
 		if effective[targetKey] != event.TargetID {
-			return fmt.Errorf("correction target %q is not the current effective event", event.TargetID)
+			return fmt.Errorf("%w: %q", ErrCorrectionTargetStale, event.TargetID)
 		}
 
 		if !sameCorrectionSnapshot(event, target) {

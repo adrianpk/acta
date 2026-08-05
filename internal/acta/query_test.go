@@ -2,7 +2,9 @@ package acta
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -138,6 +140,34 @@ func TestJournalSearchOrdersAndTruncates(t *testing.T) {
 
 	if limited.ReturnedCount != 1 || !limited.Truncated || limited.Events[0].ID != fixture.correction.ID {
 		t.Fatalf("limited result = %#v", limited)
+	}
+}
+
+func TestQueryResultStopsBeforeResponseByteLimit(t *testing.T) {
+	t.Parallel()
+
+	const matchCount = 10
+
+	event := validMilestoneEvent()
+	event.Git.Subject = strings.Repeat("x", 1<<20)
+
+	matches := make([]Event, matchCount)
+	for index := range matches {
+		matches[index] = event
+	}
+
+	result := boundedQueryResult(Query{Limit: matchCount}, matches)
+	if !result.Truncated || result.ReturnedCount >= matchCount {
+		t.Fatalf("bounded result = %#v", result)
+	}
+
+	encoded, err := json.Marshal(SuccessResponse(result))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+
+	if len(encoded)+1 > MaxResponseSize {
+		t.Fatalf("response size = %d, maximum = %d", len(encoded)+1, MaxResponseSize)
 	}
 }
 
