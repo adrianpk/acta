@@ -15,9 +15,10 @@ when and where the work happened, then inspect the recorded commit to recover
 transitively how it was done.
 
 This creates one searchable activity index across repositories without moving
-the underlying code or documentation out of Git. It gives the human a view of
-where meaningful work happened and gives agents a short route back to prior
-context.
+the underlying code or documentation out of Git. It gives the human an
+evidence-backed account of which significant milestones landed, where, and
+when. It gives agents a short route from each milestone to the exact commit and
+its implementation context.
 
 Acta is an evidence index, not a transcript store or an automatic log of every
 commit.
