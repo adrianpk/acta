@@ -171,7 +171,7 @@ func (reference RepositoryReference) Validate() error {
 		return err
 	}
 
-	return nil
+	return reference.validateCanonicalIdentity()
 }
 
 // Validate checks immutable Git evidence.

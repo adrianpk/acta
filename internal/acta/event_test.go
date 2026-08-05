@@ -140,6 +140,7 @@ func TestEventValidateOptionalFields(t *testing.T) {
 	event := validMilestoneEvent()
 	event.Execution = nil
 	event.Repository.Remote = ""
+	event.Repository.Identity = "file:///workspace/example"
 	event.Git.Branch = ""
 	event.Note = ""
 

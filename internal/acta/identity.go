@@ -43,6 +43,32 @@ func NewRepositoryReference(root, remote string) (RepositoryReference, error) {
 	return reference, nil
 }
 
+func (reference RepositoryReference) validateCanonicalIdentity() error {
+	if reference.Name != filepath.Base(reference.Root) {
+		return fmt.Errorf("validate repository: name does not match root")
+	}
+
+	if reference.Remote == "" {
+		expected := (&url.URL{Scheme: "file", Path: filepath.ToSlash(reference.Root)}).String()
+		if reference.Identity != expected {
+			return fmt.Errorf("validate repository: local identity does not match root")
+		}
+
+		return nil
+	}
+
+	normalized, err := NormalizeRepositoryRemote(reference.Remote)
+	if err != nil {
+		return fmt.Errorf("validate repository remote: %w", err)
+	}
+
+	if reference.Remote != normalized || reference.Identity != normalized {
+		return fmt.Errorf("validate repository: remote identity is not canonical")
+	}
+
+	return nil
+}
+
 // NormalizeRepositoryRemote returns a credential-free canonical repository URL.
 func NormalizeRepositoryRemote(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
