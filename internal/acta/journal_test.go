@@ -234,10 +234,11 @@ func testJournalConfig(t *testing.T) Config {
 	filesRoot := filepath.Join(root, ".acta")
 
 	return Config{
-		ConfigRoot:  filepath.Join(root, ".config", "acta"),
-		FilesRoot:   filesRoot,
-		JournalRoot: filepath.Join(filesRoot, "events"),
-		PendingPath: filepath.Join(filesRoot, "pending.json"),
+		ConfigRoot:            filepath.Join(root, ".config", "acta"),
+		FilesRoot:             filesRoot,
+		JournalRoot:           filepath.Join(filesRoot, "events"),
+		PendingPath:           filepath.Join(filesRoot, "pending.json"),
+		VerificationStatePath: filepath.Join(filesRoot, "verification.json"),
 	}
 }
 

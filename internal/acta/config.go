@@ -9,12 +9,13 @@ import (
 
 // Config contains the user-local paths owned by Acta.
 type Config struct {
-	ConfigRoot  string
-	FilesRoot   string
-	JournalRoot string
-	PendingPath string
-	RuntimeRoot string
-	SocketPath  string
+	ConfigRoot            string
+	FilesRoot             string
+	JournalRoot           string
+	PendingPath           string
+	VerificationStatePath string
+	RuntimeRoot           string
+	SocketPath            string
 }
 
 // DefaultConfig resolves Acta paths from the current process environment.
@@ -49,9 +50,10 @@ func ConfigFromHome(home string) (Config, error) {
 	filesRoot := filepath.Join(filepath.Clean(home), ".acta")
 
 	return Config{
-		ConfigRoot:  filepath.Join(filepath.Clean(home), ".config", "acta"),
-		FilesRoot:   filesRoot,
-		JournalRoot: filepath.Join(filesRoot, "events"),
-		PendingPath: filepath.Join(filesRoot, "pending.json"),
+		ConfigRoot:            filepath.Join(filepath.Clean(home), ".config", "acta"),
+		FilesRoot:             filesRoot,
+		JournalRoot:           filepath.Join(filesRoot, "events"),
+		PendingPath:           filepath.Join(filesRoot, "pending.json"),
+		VerificationStatePath: filepath.Join(filesRoot, "verification.json"),
 	}, nil
 }

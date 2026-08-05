@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"time"
 )
 
 type verifyOptions struct {
@@ -21,13 +20,24 @@ func (app *App) runVerify(ctx context.Context, arguments []string) error {
 	}
 
 	full := options.full
+
+	fullMonth := ""
 	if options.scheduled {
-		full = scheduledVerificationIsFull(app.now())
+		full, fullMonth, err = scheduledVerificationPlan(app.config.VerificationStatePath, app.now())
+		if err != nil {
+			return err
+		}
 	}
 
 	var result VerifyResult
 	if err := NewClient(app.config.SocketPath).Call(ctx, "verify", VerifyParams{Full: full}, &result); err != nil {
 		return err
+	}
+
+	if options.scheduled && full {
+		if err := recordScheduledFullVerification(app.config.VerificationStatePath, fullMonth); err != nil {
+			return err
+		}
 	}
 
 	if options.json {
@@ -63,8 +73,4 @@ func parseVerifyOptions(arguments []string, errorOutput io.Writer) (verifyOption
 	}
 
 	return options, nil
-}
-
-func scheduledVerificationIsFull(now time.Time) bool {
-	return now.In(time.Local).Day() == 1
 }

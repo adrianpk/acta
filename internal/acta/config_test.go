@@ -18,10 +18,11 @@ func TestConfigFromHome(t *testing.T) {
 			name: "user paths",
 			home: "/home/tester",
 			want: Config{
-				ConfigRoot:  filepath.FromSlash("/home/tester/.config/acta"),
-				FilesRoot:   filepath.FromSlash("/home/tester/.acta"),
-				JournalRoot: filepath.FromSlash("/home/tester/.acta/events"),
-				PendingPath: filepath.FromSlash("/home/tester/.acta/pending.json"),
+				ConfigRoot:            filepath.FromSlash("/home/tester/.config/acta"),
+				FilesRoot:             filepath.FromSlash("/home/tester/.acta"),
+				JournalRoot:           filepath.FromSlash("/home/tester/.acta/events"),
+				PendingPath:           filepath.FromSlash("/home/tester/.acta/pending.json"),
+				VerificationStatePath: filepath.FromSlash("/home/tester/.acta/verification.json"),
 			},
 		},
 		{
