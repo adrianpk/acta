@@ -45,6 +45,7 @@ type Journal struct {
 	events     map[EventID]Event
 	milestones map[MilestoneKey]EventID
 	effective  map[MilestoneKey]EventID
+	order      []EventID
 }
 
 // NewJournal stores configuration without performing IO.
@@ -129,7 +130,7 @@ func (journal *Journal) Append(ctx context.Context, event Event) (AppendResult, 
 		return AppendResult{}, err
 	}
 
-	addEventToIndex(event, journal.events, journal.milestones, journal.effective)
+	addEventToIndex(event, journal.events, journal.milestones, journal.effective, &journal.order)
 
 	return AppendResult{Event: event, Recorded: true}, nil
 }
@@ -218,6 +219,7 @@ type journalIndex struct {
 	events     map[EventID]Event
 	milestones map[MilestoneKey]EventID
 	effective  map[MilestoneKey]EventID
+	order      []EventID
 }
 
 func newJournalIndex() *journalIndex {
@@ -225,6 +227,7 @@ func newJournalIndex() *journalIndex {
 		events:     make(map[EventID]Event),
 		milestones: make(map[MilestoneKey]EventID),
 		effective:  make(map[MilestoneKey]EventID),
+		order:      make([]EventID, 0),
 	}
 }
 
@@ -248,6 +251,7 @@ func (journal *Journal) applyIndex(index *journalIndex) {
 	journal.events = index.events
 	journal.milestones = index.milestones
 	journal.effective = index.effective
+	journal.order = index.order
 }
 
 func prepareJournalDirectories(config Config) error {
@@ -359,7 +363,7 @@ func loadSegmentEvent(root, segmentPath string, lineNumber int, line []byte, ind
 		return corruptSegment(segmentPath, lineNumber, "%v", err)
 	}
 
-	addEventToIndex(event, index.events, index.milestones, index.effective)
+	addEventToIndex(event, index.events, index.milestones, index.effective, &index.order)
 
 	return nil
 }
@@ -394,8 +398,9 @@ func validateEventAgainstIndex(event Event, events map[EventID]Event, milestones
 	return nil
 }
 
-func addEventToIndex(event Event, events map[EventID]Event, milestones, effective map[MilestoneKey]EventID) {
+func addEventToIndex(event Event, events map[EventID]Event, milestones, effective map[MilestoneKey]EventID, order *[]EventID) {
 	events[event.ID] = event
+	*order = append(*order, event.ID)
 
 	key := eventMilestoneKey(event)
 	if event.Type == EventTypeMilestone {
