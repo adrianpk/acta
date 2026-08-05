@@ -78,3 +78,4 @@ None recorded.
   timestamps, and optional execution provenance.
 - 2026-08-05: Maintainer approved the delivery map and activated Slice 1.
 - 2026-08-05: Completed T1.1, T1.2, and T1.3 and moved Slice 1 to review.
+- 2026-08-05: Opened Slice 1 pull request `#1` against `dev`.

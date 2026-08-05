@@ -12,7 +12,7 @@ reported_at: 2026-08-05T18:14:11Z
 started_at: 2026-08-05T18:14:11Z
 reviewed_at: 2026-08-05T18:26:47Z
 branch: feat/acta-journal-core
-pr: pending
+pr: 1
 commits:
   - 0aa1b56
 ---
