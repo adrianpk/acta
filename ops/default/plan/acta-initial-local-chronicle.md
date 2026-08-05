@@ -1,7 +1,7 @@
 # Acta Initial Local Chronicle Plan
 
-Status: proposed
-Approval: pending
+Status: approved
+Approval: approved
 Delivery set: Acta Initial Local Chronicle
 Tracker: `ops/default/tracker/acta-initial-local-chronicle.md`
 Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
@@ -14,8 +14,8 @@ record significant Git commits through a local per-user service, preserve them
 in recoverable monthly JSONL segments, provide bounded retrieval, and verify
 journal integrity.
 
-This plan does not authorize implementation until its status and the tracker
-status are changed to `approved` and that approval is committed to `dev`.
+This plan authorizes the recorded slices after its approved state and the
+matching tracker state are committed to `dev`.
 
 ## Slice Strategy
 

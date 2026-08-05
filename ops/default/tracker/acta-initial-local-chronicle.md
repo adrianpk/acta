@@ -1,7 +1,7 @@
 # Acta Initial Local Chronicle Tracker
 
-Status: proposed
-Approval: pending
+Status: active
+Approval: approved
 Delivery set: Acta Initial Local Chronicle
 Slice strategy: layered
 Plan: `ops/default/plan/acta-initial-local-chronicle.md`
@@ -9,18 +9,18 @@ Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
 Progress: 0 of 4 slices completed
 Active slice: Slice 1, Durable Journal Core
-Active slice status: planned
+Active slice status: active
 
 ## Execution Gate
 
-Implementation is blocked until the maintainer approves the plan and tracker,
-both artifacts have status `approved`, and that state is committed to `dev`.
+The maintainer approved the complete delivery map. Slice 1 may start after this
+approval state is committed to `dev`.
 
 ## Slice Map
 
 | Slice | Status | Branch | Expected PR | Report |
 |---|---|---|---|---|
-| Slice 1: Durable Journal Core | planned | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
+| Slice 1: Durable Journal Core | active | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
 | Slice 2: Local Service and Recording | pending | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
 | Slice 3: Bounded Retrieval and Corrections | pending | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
 | Slice 4: Integrity and Operational Completion | pending | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
@@ -65,7 +65,7 @@ plan commit handoff.
 
 ## Blockers
 
-- Maintainer approval of the proposed delivery map is pending.
+None recorded.
 
 ## History
 
@@ -73,3 +73,4 @@ plan commit handoff.
   tracker on `dev`.
 - 2026-08-05: Aligned proposed tasks with self-contained corrections, Git
   timestamps, and optional execution provenance.
+- 2026-08-05: Maintainer approved the delivery map and activated Slice 1.
