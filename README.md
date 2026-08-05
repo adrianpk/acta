@@ -98,18 +98,12 @@ source for code, specs, plans, diffs, and detailed history.
 
 ## Agent integration
 
-A workspace can include a concise rule like this in `AGENTS.md`:
-
-```md
-After creating a significant commit, run `acta record` to add it to the shared activity journal.
-A commit is significant when it completes a milestone, records a reusable decision, or resolves a non-obvious problem.
-Supply harness and model provenance only when known reliably.
-Do not record routine, mechanical, generated, formatting, punctuation-only, or work-in-progress commits.
-```
-
-A commit that only changes a comma should not become an Acta milestone. A
-committed specification, resolved architectural issue, completed feature, or
-reusable operational pattern often should.
+Each workspace defines its own capture policy. One workspace can record only
+important milestones, while another can record every completed intentional
+change. The [Acta user guide](docs/tutorials/user-guide/index.md) covers the
+first setup. [Choose an agent capture
+policy](docs/how-to/choose-an-agent-capture-policy.md) provides concise
+`AGENTS.md` rules for both approaches.
 
 ## Evidence boundaries
 
