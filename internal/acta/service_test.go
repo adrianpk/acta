@@ -137,6 +137,19 @@ func TestServiceHandlesRetrievalAndCorrection(t *testing.T) {
 		t.Fatalf("show result = %#v", showResult)
 	}
 
+	reportResponse := handleTestRequest(t, service, "report", ReportParams{
+		From:     "2026-08-05",
+		To:       "2026-08-08",
+		Timezone: "UTC",
+	})
+
+	var reportResult ReportResult
+	decodeTestResult(t, reportResponse, &reportResult)
+
+	if reportResult.ReturnedCount != 3 {
+		t.Fatalf("report result = %#v", reportResult)
+	}
+
 	correctResponse := handleTestRequest(t, service, "correct", CorrectParams{
 		TargetID: fixture.correction.ID,
 		Reason:   "Clarify service behavior",
@@ -182,6 +195,12 @@ func TestServiceMapsRetrievalAndCorrectionErrors(t *testing.T) {
 				Reason:   "Missing target",
 			},
 			wantCode: ErrorNotFound,
+		},
+		{
+			name:      "invalid report",
+			operation: "report",
+			params:    ReportParams{From: "2026-08-01", To: "2026-08-01", Timezone: "UTC"},
+			wantCode:  ErrorInvalidRequest,
 		},
 		{
 			name:      "stale correction target",

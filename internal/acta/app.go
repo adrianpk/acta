@@ -32,7 +32,7 @@ func NewApp(config Config, stdout, stderr io.Writer) *App {
 // Run executes one CLI command.
 func (app *App) Run(ctx context.Context, arguments []string) error {
 	if len(arguments) == 0 {
-		return fmt.Errorf("usage: acta <correct|record|search|serve|show>")
+		return fmt.Errorf("usage: acta <correct|record|report|search|serve|show>")
 	}
 
 	switch arguments[0] {
@@ -40,6 +40,8 @@ func (app *App) Run(ctx context.Context, arguments []string) error {
 		return app.runCorrect(ctx, arguments[1:])
 	case "record":
 		return app.runRecord(ctx, arguments[1:])
+	case "report":
+		return app.runReport(ctx, arguments[1:])
 	case "search":
 		return app.runSearch(ctx, arguments[1:])
 	case "serve":

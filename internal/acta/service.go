@@ -30,6 +30,8 @@ func (service *Service) Handle(ctx context.Context, request Request) Response {
 		return service.handleCorrect(ctx, request.Params)
 	case "record":
 		return service.handleRecord(ctx, request.Params)
+	case "report":
+		return service.handleReport(ctx, request.Params)
 	case "search":
 		return service.handleSearch(ctx, request.Params)
 	case "show":
@@ -60,6 +62,20 @@ func (service *Service) handleSearch(ctx context.Context, encoded json.RawMessag
 	}
 
 	result, err := service.journal.Search(ctx, query)
+	if err != nil {
+		return retrievalErrorResponse(err)
+	}
+
+	return SuccessResponse(result)
+}
+
+func (service *Service) handleReport(ctx context.Context, encoded json.RawMessage) Response {
+	var params ReportParams
+	if err := decodeOperationParams(encoded, &params); err != nil {
+		return ErrorResponse(ErrorInvalidRequest, "decode report params")
+	}
+
+	result, err := service.journal.Report(ctx, params)
 	if err != nil {
 		return retrievalErrorResponse(err)
 	}
@@ -121,7 +137,7 @@ func recordErrorResponse(err error) Response {
 
 func retrievalErrorResponse(err error) Response {
 	switch {
-	case errors.Is(err, ErrQueryInvalid), errors.Is(err, ErrCommitAmbiguous):
+	case errors.Is(err, ErrQueryInvalid), errors.Is(err, ErrCommitAmbiguous), errors.Is(err, ErrReportInvalid):
 		return ErrorResponse(ErrorInvalidRequest, err.Error())
 	case errors.Is(err, ErrEventNotFound):
 		return ErrorResponse(ErrorNotFound, err.Error())

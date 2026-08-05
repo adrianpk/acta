@@ -154,6 +154,29 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 	if !strings.Contains(runTestAppCommand(t, config, []string{"search"}), "correction") {
 		t.Fatal("human search output does not identify the effective correction")
 	}
+
+	assertAppReportEndToEnd(t, config, corrected.Event)
+}
+
+func assertAppReportEndToEnd(t *testing.T, config Config, event Event) {
+	t.Helper()
+
+	reportFrom := event.RecordedAt.Format(reportDateLayout)
+	reportTo := event.RecordedAt.AddDate(0, 0, 1).Format(reportDateLayout)
+	reportOutput := runTestAppCommand(t, config, []string{
+		"report", "--from", reportFrom, "--to", reportTo, "--timezone", "UTC", "--json",
+	})
+
+	var report ReportResult
+	decodeCLIResult(t, reportOutput, &report)
+	assertReportCount(t, report, 1)
+
+	humanReport := runTestAppCommand(t, config, []string{
+		"report", "--from", reportFrom, "--to", reportTo, "--timezone", "UTC",
+	})
+	if !strings.Contains(humanReport, reportFrom) || !strings.Contains(humanReport, event.Repository.Name) {
+		t.Fatalf("human report = %q", humanReport)
+	}
 }
 
 func decodeCLIResult(t *testing.T, output string, target any) {
@@ -185,6 +208,14 @@ func assertCorrectedEvent(t *testing.T, result CorrectResult, targetID EventID, 
 
 	if result.Event.TargetID != targetID || result.Event.Note != note {
 		t.Fatalf("corrected event = %#v", result.Event)
+	}
+}
+
+func assertReportCount(t *testing.T, result ReportResult, want int) {
+	t.Helper()
+
+	if result.ReturnedCount != want {
+		t.Fatalf("report result = %#v", result)
 	}
 }
 
