@@ -1,7 +1,7 @@
 ---
 id: TKT-20260805181409
 title: Create the Diataxis documentation structure
-status: reviewing
+status: solved
 kind: follow_up
 severity: low
 priority: normal
@@ -12,6 +12,8 @@ reported_at: 2026-08-05T18:14:09Z
 ready_at: 2026-08-05T20:06:50Z
 started_at: 2026-08-05T20:06:50Z
 reviewed_at: 2026-08-05T20:15:44Z
+closed_at: 2026-08-05T20:17:56Z
+resolution: fixed
 branch: docs/ticket-20260805181409-diataxis-user-guide
 pr: 5
 commits:
