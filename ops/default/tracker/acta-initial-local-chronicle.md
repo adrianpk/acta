@@ -9,7 +9,7 @@ Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
 Progress: 1 of 4 slices completed
 Active slice: Slice 2, Local Service and Recording
-Active slice status: active
+Active slice status: reviewing
 
 ## Execution Gate
 
@@ -21,7 +21,7 @@ approval state is committed to `dev`.
 | Slice | Status | Branch | Expected PR | Report |
 |---|---|---|---|---|
 | Slice 1: Durable Journal Core | delivered | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
-| Slice 2: Local Service and Recording | active | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
+| Slice 2: Local Service and Recording | reviewing | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
 | Slice 3: Bounded Retrieval and Corrections | pending | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
 | Slice 4: Integrity and Operational Completion | pending | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
 
@@ -37,10 +37,10 @@ approval state is committed to `dev`.
 
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
-| `T2.1` | Implement bounded JSON envelopes, Unix socket transport, limits, errors, and tests. | pending | pending | pending |
-| `T2.2` | Implement Git metadata and timestamps, remote sanitization, optional execution provenance, recording, idempotency, and failure tests. | pending | pending | pending |
-| `T2.3` | Add root `main.go`, `record` and `serve`, lifecycle behavior, and end-to-end tests. | pending | pending | pending |
-| `T2.4` | Add and validate per-user service and socket activation assets without changing the live service. | pending | pending | pending |
+| `T2.1` | Implement bounded JSON envelopes, Unix socket transport, limits, errors, and tests. | completed | `4d9ff97` | Focused tests, race tests, and strict lint pass. |
+| `T2.2` | Implement Git metadata and timestamps, remote sanitization, optional execution provenance, recording, idempotency, and failure tests. | completed | `bdfa6cf` | Focused tests, race tests, and strict lint pass. |
+| `T2.3` | Add root `main.go`, `record` and `serve`, lifecycle behavior, and end-to-end tests. | completed | `b710718` | Full suite and service-restart integration tests pass. |
+| `T2.4` | Add and validate per-user service and socket activation assets without changing the live service. | completed | `8258ef3` | Socket adoption tests and systemd unit verification pass. |
 
 ## Slice 3 Tasks
 
@@ -65,6 +65,11 @@ approval state is committed to `dev`.
 - 2026-08-05: `go test ./internal/acta` passed.
 - 2026-08-05: `go test -race ./internal/acta` passed.
 - 2026-08-05: `go test ./...` passed.
+- 2026-08-05: Slice 2 `make lint-strict` passed with 0 issues.
+- 2026-08-05: Slice 2 `go test ./internal/acta` passed.
+- 2026-08-05: Slice 2 `go test -race ./internal/acta` passed.
+- 2026-08-05: Slice 2 `go test ./...` passed.
+- 2026-08-05: `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket` passed.
 
 ## Blockers
 
@@ -81,3 +86,4 @@ None recorded.
 - 2026-08-05: Opened Slice 1 pull request `#1` against `dev`.
 - 2026-08-05: Verified pull request `#1` merged into `dev`, delivered Slice 1,
   and activated Slice 2.
+- 2026-08-05: Completed T2.1 through T2.4 and moved Slice 2 to review.
