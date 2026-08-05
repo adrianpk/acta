@@ -42,6 +42,7 @@ type Journal struct {
 
 	mu         sync.RWMutex
 	loaded     bool
+	loadErr    error
 	events     map[EventID]Event
 	milestones map[MilestoneKey]EventID
 	effective  map[MilestoneKey]EventID
@@ -54,9 +55,12 @@ func NewJournal(config Config) *Journal {
 }
 
 // Load creates Acta-owned directories and rebuilds all journal indexes.
-func (journal *Journal) Load(ctx context.Context) error {
+func (journal *Journal) Load(ctx context.Context) (resultErr error) {
 	journal.mu.Lock()
 	defer journal.mu.Unlock()
+	defer func() {
+		journal.loadErr = resultErr
+	}()
 
 	journal.loaded = false
 	journal.applyIndex(newJournalIndex())
@@ -83,6 +87,14 @@ func (journal *Journal) Load(ctx context.Context) error {
 	journal.loaded = true
 
 	return nil
+}
+
+// Loaded reports whether canonical indexes are available for normal operations.
+func (journal *Journal) Loaded() bool {
+	journal.mu.RLock()
+	defer journal.mu.RUnlock()
+
+	return journal.loaded
 }
 
 // Append validates, publishes, syncs, and indexes one event.

@@ -76,6 +76,57 @@ func TestAppRecordDoesNotFallbackWithoutService(t *testing.T) {
 	}
 }
 
+func TestAppServesFullVerificationWhenJournalLoadFindsCorruption(t *testing.T) {
+	t.Parallel()
+
+	config := testAppConfig(t)
+	if err := prepareJournalDirectories(config); err != nil {
+		t.Fatalf("prepare journal: %v", err)
+	}
+
+	segmentPath := SegmentPath(config.JournalRoot, time.Now().UTC())
+	if err := os.MkdirAll(filepath.Dir(segmentPath), 0o700); err != nil {
+		t.Fatalf("create segment directory: %v", err)
+	}
+
+	if err := os.WriteFile(segmentPath, []byte("not-json\n"), 0o600); err != nil {
+		t.Fatalf("write corrupt segment: %v", err)
+	}
+
+	stop := startTestAppService(t, config)
+	defer stop()
+
+	client := NewClient(config.SocketPath)
+	assertDegradedVerificationError(t, client, segmentPath)
+	assertDegradedRecordBlocked(t, client)
+}
+
+func assertDegradedVerificationError(t *testing.T, client *Client, segmentPath string) {
+	t.Helper()
+
+	err := client.Call(context.Background(), "verify", VerifyParams{Full: true}, &VerifyResult{})
+
+	var serviceError *ServiceError
+	if !errors.As(err, &serviceError) || serviceError.Code != ErrorJournalCorrupt {
+		t.Fatalf("verification error = %v", err)
+	}
+
+	if !strings.Contains(serviceError.Message, segmentPath) || !strings.Contains(serviceError.Message, "byte") {
+		t.Fatalf("verification message = %q", serviceError.Message)
+	}
+}
+
+func assertDegradedRecordBlocked(t *testing.T, client *Client) {
+	t.Helper()
+
+	err := client.Call(context.Background(), "record", validRecordParams(), &RecordResult{})
+
+	var serviceError *ServiceError
+	if !errors.As(err, &serviceError) || serviceError.Code != ErrorJournalUnavailable {
+		t.Fatalf("record error = %v", err)
+	}
+}
+
 func TestParseRecordOptions(t *testing.T) {
 	t.Parallel()
 

@@ -64,7 +64,7 @@ func (app *App) runServe(ctx context.Context, arguments []string) error {
 	}
 
 	journal := NewJournal(app.config)
-	if err := journal.Load(ctx); err != nil {
+	if err := journal.Load(ctx); err != nil && !errors.Is(err, ErrJournalCorrupt) {
 		return fmt.Errorf("load Acta journal: %w", err)
 	}
 

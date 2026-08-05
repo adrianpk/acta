@@ -167,6 +167,29 @@ func TestVerifierRejectsWrongSegmentAndCorrectionSnapshot(t *testing.T) {
 	})
 }
 
+func TestFullVerifierPreservesLoadFailureOutsideCanonicalSegments(t *testing.T) {
+	t.Parallel()
+
+	config := testJournalConfig(t)
+	if err := prepareJournalDirectories(config); err != nil {
+		t.Fatalf("prepare journal: %v", err)
+	}
+
+	if err := os.WriteFile(config.PendingPath, []byte("not-json\n"), 0o600); err != nil {
+		t.Fatalf("write corrupt pending state: %v", err)
+	}
+
+	journal := NewJournal(config)
+	if err := journal.Load(context.Background()); !errors.Is(err, ErrJournalCorrupt) {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	_, err := NewVerifier(journal).Verify(context.Background(), VerifyParams{Full: true})
+	if !errors.Is(err, ErrJournalCorrupt) || !strings.Contains(err.Error(), config.PendingPath) {
+		t.Fatalf("Verify() error = %v", err)
+	}
+}
+
 func newCrossSegmentVerifier(t *testing.T) (*Journal, *Verifier, Event, Event) {
 	t.Helper()
 

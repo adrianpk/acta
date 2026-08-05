@@ -40,6 +40,10 @@ func NewCorrector(journal *Journal) *Corrector {
 
 // Correct appends a self-contained correction to the current effective event.
 func (corrector *Corrector) Correct(ctx context.Context, params CorrectParams) (CorrectResult, error) {
+	if !corrector.journal.Loaded() {
+		return CorrectResult{}, ErrJournalNotLoaded
+	}
+
 	target, ok := corrector.journal.Event(params.TargetID)
 	if !ok {
 		return CorrectResult{}, ErrCorrectionTargetNotFound

@@ -76,12 +76,17 @@ func (verifier *Verifier) Verify(ctx context.Context, params VerifyParams) (Veri
 	verifier.journal.mu.RLock()
 	defer verifier.journal.mu.RUnlock()
 
-	if !verifier.journal.loaded {
-		return VerifyResult{}, ErrJournalNotLoaded
+	if params.Full {
+		result, err := verifier.verifyFull(ctx)
+		if err == nil && !verifier.journal.loaded && verifier.journal.loadErr != nil {
+			return VerifyResult{}, verifier.journal.loadErr
+		}
+
+		return result, err
 	}
 
-	if params.Full {
-		return verifier.verifyFull(ctx)
+	if !verifier.journal.loaded {
+		return VerifyResult{}, ErrJournalNotLoaded
 	}
 
 	return verifier.verifyActive(ctx)
