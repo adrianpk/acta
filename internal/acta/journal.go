@@ -57,6 +57,9 @@ func (journal *Journal) Load(ctx context.Context) error {
 	journal.mu.Lock()
 	defer journal.mu.Unlock()
 
+	journal.loaded = false
+	journal.applyIndex(newJournalIndex())
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -65,21 +68,17 @@ func (journal *Journal) Load(ctx context.Context) error {
 		return err
 	}
 
-	paths, err := listSegmentPaths(journal.config.JournalRoot)
+	if _, err := recoverPending(journal.config); err != nil {
+		return err
+	}
+
+	index, err := rebuildJournalIndex(ctx, journal.config.JournalRoot)
 	if err != nil {
 		return err
 	}
 
-	index := newJournalIndex()
-	for _, segmentPath := range paths {
-		if err := loadSegment(ctx, journal.config.JournalRoot, segmentPath, index); err != nil {
-			return err
-		}
-	}
+	journal.applyIndex(index)
 
-	journal.events = index.events
-	journal.milestones = index.milestones
-	journal.effective = index.effective
 	journal.loaded = true
 
 	return nil
@@ -94,6 +93,10 @@ func (journal *Journal) Append(ctx context.Context, event Event) (AppendResult, 
 		return AppendResult{}, ErrJournalNotLoaded
 	}
 
+	if err := journal.recoverForAppend(ctx); err != nil {
+		return AppendResult{}, err
+	}
+
 	if err := ctx.Err(); err != nil {
 		return AppendResult{}, err
 	}
@@ -102,11 +105,8 @@ func (journal *Journal) Append(ctx context.Context, event Event) (AppendResult, 
 		return AppendResult{}, err
 	}
 
-	key := eventMilestoneKey(event)
-	if event.Type == EventTypeMilestone {
-		if existingID, ok := journal.milestones[key]; ok {
-			return AppendResult{Event: journal.events[existingID], Recorded: false}, nil
-		}
+	if existing, ok := journal.existingMilestone(event); ok {
+		return AppendResult{Event: existing, Recorded: false}, nil
 	}
 
 	if _, ok := journal.events[event.ID]; ok {
@@ -125,13 +125,42 @@ func (journal *Journal) Append(ctx context.Context, event Event) (AppendResult, 
 	line = append(line, '\n')
 
 	segmentPath := SegmentPath(journal.config.JournalRoot, event.RecordedAt)
-	if err := appendEventLine(segmentPath, line); err != nil {
+	if err := publishEvent(journal.config, segmentPath, line); err != nil {
 		return AppendResult{}, err
 	}
 
 	addEventToIndex(event, journal.events, journal.milestones, journal.effective)
 
 	return AppendResult{Event: event, Recorded: true}, nil
+}
+
+func (journal *Journal) existingMilestone(event Event) (Event, bool) {
+	if event.Type != EventTypeMilestone {
+		return Event{}, false
+	}
+
+	existingID, ok := journal.milestones[eventMilestoneKey(event)]
+	if !ok {
+		return Event{}, false
+	}
+
+	return journal.events[existingID], true
+}
+
+func (journal *Journal) recoverForAppend(ctx context.Context) error {
+	recovered, err := recoverPending(journal.config)
+	if err != nil || !recovered {
+		return err
+	}
+
+	index, err := rebuildJournalIndex(ctx, journal.config.JournalRoot)
+	if err != nil {
+		return err
+	}
+
+	journal.applyIndex(index)
+
+	return nil
 }
 
 // Event returns one event by ID.
@@ -199,6 +228,28 @@ func newJournalIndex() *journalIndex {
 	}
 }
 
+func rebuildJournalIndex(ctx context.Context, root string) (*journalIndex, error) {
+	paths, err := listSegmentPaths(root)
+	if err != nil {
+		return nil, err
+	}
+
+	index := newJournalIndex()
+	for _, segmentPath := range paths {
+		if err := loadSegment(ctx, root, segmentPath, index); err != nil {
+			return nil, err
+		}
+	}
+
+	return index, nil
+}
+
+func (journal *Journal) applyIndex(index *journalIndex) {
+	journal.events = index.events
+	journal.milestones = index.milestones
+	journal.effective = index.effective
+}
+
 func prepareJournalDirectories(config Config) error {
 	for _, directory := range []string{config.FilesRoot, config.JournalRoot} {
 		if directory == "" {
@@ -254,6 +305,10 @@ func loadSegment(ctx context.Context, root, segmentPath string, index *journalIn
 			resultErr = fmt.Errorf("close journal segment %q: %w", segmentPath, closeErr)
 		}
 	}()
+
+	if err := validateSegmentTail(file, segmentPath); err != nil {
+		return err
+	}
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64<<10), maxEventLineSize)
