@@ -9,7 +9,7 @@ Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
 Progress: 0 of 4 slices completed
 Active slice: Slice 1, Durable Journal Core
-Active slice status: active
+Active slice status: reviewing
 
 ## Execution Gate
 
@@ -20,7 +20,7 @@ approval state is committed to `dev`.
 
 | Slice | Status | Branch | Expected PR | Report |
 |---|---|---|---|---|
-| Slice 1: Durable Journal Core | active | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
+| Slice 1: Durable Journal Core | reviewing | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
 | Slice 2: Local Service and Recording | pending | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
 | Slice 3: Bounded Retrieval and Corrections | pending | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
 | Slice 4: Integrity and Operational Completion | pending | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
@@ -29,9 +29,9 @@ approval state is committed to `dev`.
 
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
-| `T1.1` | Define self-contained event values, optional execution provenance, validation, ULID generation, repository identity normalization, and tests. | pending | pending | pending |
-| `T1.2` | Implement monthly segment selection, journal loading, global indexes, and idempotent append with tests. | pending | pending | pending |
-| `T1.3` | Implement pending-operation recovery, corruption blocking, and concurrent writer tests. | pending | pending | pending |
+| `T1.1` | Define self-contained event values, optional execution provenance, validation, ULID generation, repository identity normalization, and tests. | completed | `0104004` | Focused tests and race tests pass. |
+| `T1.2` | Implement monthly segment selection, journal loading, global indexes, and idempotent append with tests. | completed | `4f531f1` | Focused tests and race tests pass. |
+| `T1.3` | Implement pending-operation recovery, corruption blocking, and concurrent writer tests. | completed | `ade10d9` | Focused tests, race tests, and strict lint pass. |
 
 ## Slice 2 Tasks
 
@@ -60,8 +60,11 @@ approval state is committed to `dev`.
 
 ## Validation Log
 
-No implementation validation has run. Planning validation is recorded in the
-plan commit handoff.
+- 2026-08-05: `go fmt ./...` completed successfully.
+- 2026-08-05: `make lint-strict` passed with 0 issues.
+- 2026-08-05: `go test ./internal/acta` passed.
+- 2026-08-05: `go test -race ./internal/acta` passed.
+- 2026-08-05: `go test ./...` passed.
 
 ## Blockers
 
@@ -74,3 +77,4 @@ None recorded.
 - 2026-08-05: Aligned proposed tasks with self-contained corrections, Git
   timestamps, and optional execution provenance.
 - 2026-08-05: Maintainer approved the delivery map and activated Slice 1.
+- 2026-08-05: Completed T1.1, T1.2, and T1.3 and moved Slice 1 to review.
