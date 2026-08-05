@@ -54,3 +54,33 @@ func TestConfigFromHome(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultConfigIncludesRuntimeSocket(t *testing.T) {
+	home := t.TempDir()
+	runtimeDirectory := filepath.Join(t.TempDir(), "runtime")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDirectory)
+
+	config, err := DefaultConfig()
+	if err != nil {
+		t.Fatalf("DefaultConfig() error = %v", err)
+	}
+
+	if config.FilesRoot != filepath.Join(home, ".acta") {
+		t.Fatalf("FilesRoot = %q", config.FilesRoot)
+	}
+
+	wantRuntimeRoot := filepath.Join(runtimeDirectory, "acta")
+	if config.RuntimeRoot != wantRuntimeRoot || config.SocketPath != filepath.Join(wantRuntimeRoot, "acta.sock") {
+		t.Fatalf("runtime config = %#v", config)
+	}
+}
+
+func TestDefaultConfigRequiresRuntimeDirectory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", "")
+
+	if _, err := DefaultConfig(); err == nil {
+		t.Fatal("expected runtime directory error")
+	}
+}

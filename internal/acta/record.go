@@ -2,9 +2,14 @@ package acta
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"time"
 )
+
+// ErrEventInvalid identifies client evidence that cannot form a valid event.
+var ErrEventInvalid = errors.New("event is invalid")
 
 // RecordParams contains client-derived evidence and optional provenance.
 type RecordParams struct {
@@ -52,6 +57,9 @@ func (recorder *Recorder) Record(ctx context.Context, params RecordParams) (Reco
 		Repository:    params.Repository,
 		Git:           params.Git,
 		Note:          params.Note,
+	}
+	if err := event.Validate(); err != nil {
+		return RecordResult{}, fmt.Errorf("%w: %w", ErrEventInvalid, err)
 	}
 
 	result, err := recorder.journal.Append(ctx, event)

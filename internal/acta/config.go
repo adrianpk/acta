@@ -13,6 +13,8 @@ type Config struct {
 	FilesRoot   string
 	JournalRoot string
 	PendingPath string
+	RuntimeRoot string
+	SocketPath  string
 }
 
 // DefaultConfig resolves Acta paths from the current process environment.
@@ -22,7 +24,20 @@ func DefaultConfig() (Config, error) {
 		return Config{}, fmt.Errorf("resolve user home: %w", err)
 	}
 
-	return ConfigFromHome(home)
+	config, err := ConfigFromHome(home)
+	if err != nil {
+		return Config{}, err
+	}
+
+	runtimeDirectory := os.Getenv("XDG_RUNTIME_DIR")
+	if runtimeDirectory == "" {
+		return Config{}, fmt.Errorf("resolve Acta runtime paths: XDG_RUNTIME_DIR is required")
+	}
+
+	config.RuntimeRoot = filepath.Join(filepath.Clean(runtimeDirectory), "acta")
+	config.SocketPath = filepath.Join(config.RuntimeRoot, "acta.sock")
+
+	return config, nil
 }
 
 // ConfigFromHome resolves Acta paths for a user home directory.
