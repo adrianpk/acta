@@ -9,7 +9,7 @@ Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
 Progress: 2 of 4 slices completed
 Active slice: Slice 3, Bounded Retrieval and Corrections
-Active slice status: active
+Active slice status: reviewing
 
 ## Execution Gate
 
@@ -22,7 +22,7 @@ approval state is committed to `dev`.
 |---|---|---|---|---|
 | Slice 1: Durable Journal Core | delivered | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
 | Slice 2: Local Service and Recording | delivered | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
-| Slice 3: Bounded Retrieval and Corrections | active | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
+| Slice 3: Bounded Retrieval and Corrections | reviewing | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
 | Slice 4: Integrity and Operational Completion | pending | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
 
 ## Slice 1 Tasks
@@ -46,9 +46,9 @@ approval state is committed to `dev`.
 
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
-| `T3.1` | Implement filtering, ordering, text matching, self-contained correction chains, execution and Git-time filters, and bounded results with tests. | pending | pending | pending |
-| `T3.2` | Implement `show`, `search`, and `correct` service and CLI operations with boundary tests. | pending | pending | pending |
-| `T3.3` | Implement interval reports, timezone handling, grouped and JSON output, and cross-month tests. | pending | pending | pending |
+| `T3.1` | Implement filtering, ordering, text matching, self-contained correction chains, execution and Git-time filters, and bounded results with tests. | completed | `311dd6a` | Focused search, effective-view, ordering, filter, and truncation tests pass. |
+| `T3.2` | Implement `show`, `search`, and `correct` service and CLI operations with boundary tests. | completed | `dcd5dd5` | Service, CLI, not-found, stale-target, count-limit, byte-limit, and end-to-end tests pass. |
+| `T3.3` | Implement interval reports, timezone handling, grouped and JSON output, and cross-month tests. | completed | `0e00531` | Local/IANA timezone, interval, grouping, cross-month, JSON, and truncation tests pass. |
 
 ## Slice 4 Tasks
 
@@ -70,6 +70,11 @@ approval state is committed to `dev`.
 - 2026-08-05: Slice 2 `go test -race ./internal/acta` passed.
 - 2026-08-05: Slice 2 `go test ./...` passed.
 - 2026-08-05: `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket` passed.
+- 2026-08-05: Slice 3 `make lint-strict` passed with 0 issues.
+- 2026-08-05: Slice 3 `go test ./internal/acta` passed.
+- 2026-08-05: Slice 3 `go test -race ./internal/acta` passed.
+- 2026-08-05: Slice 3 `go test ./...` passed.
+- 2026-08-05: Slice 3 `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket` passed.
 
 ## Blockers
 
@@ -90,3 +95,4 @@ None recorded.
 - 2026-08-05: Opened Slice 2 pull request `#2` against `dev`.
 - 2026-08-05: Verified pull request `#2` merged into `dev`, delivered Slice 2,
   and activated Slice 3.
+- 2026-08-05: Completed T3.1, T3.2, and T3.3 and moved Slice 3 to review.
