@@ -96,3 +96,4 @@ None recorded.
 - 2026-08-05: Verified pull request `#2` merged into `dev`, delivered Slice 2,
   and activated Slice 3.
 - 2026-08-05: Completed T3.1, T3.2, and T3.3 and moved Slice 3 to review.
+- 2026-08-05: Opened Slice 3 pull request `#3` against `dev`.
