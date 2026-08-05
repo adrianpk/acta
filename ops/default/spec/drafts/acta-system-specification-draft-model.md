@@ -13,8 +13,9 @@ This document defines the durable event types, value rules, identity rules,
 ordering, deduplication, correction lifecycle, and storage format used by the
 journal.
 
-The canonical journal is a UTF-8 JSON Lines file. Derived indexes and caches are
-not canonical and must be rebuildable from that file.
+The canonical journal is an ordered set of monthly UTF-8 JSON Lines segments.
+Derived indexes and caches are not canonical and must be rebuildable from those
+segments.
 
 ## 2. Event types
 
@@ -72,9 +73,9 @@ runtime           optional agent runtime label
 `runtime` may identify a caller such as Codex or Pi when reliably provided. It
 must not be required for event identity, retrieval, or correctness.
 
-Session identifiers are not part of the settled durable model. The parent
-specification leaves durable session identity and per-session books open. A
-planning decision must resolve that boundary before adding session fields.
+Session identifiers are not part of `acta/v1`. The initial product does not
+persist durable session identity or per-session books. A later schema version
+may add session provenance when a reliable cross-runtime identity exists.
 
 ## 4. Milestone event
 
@@ -201,7 +202,8 @@ replacement_note  optional SignificanceNote
 
 Rules:
 
-- `target_id` must identify an earlier event in the same journal;
+- `target_id` must identify an earlier event in the canonical journal,
+  including an earlier monthly segment;
 - the target event remains unchanged;
 - `reason` explains why the correction exists;
 - `replacement_note`, when present, is the corrected significance note;
@@ -214,15 +216,29 @@ order. Raw export always preserves every original event.
 
 ## 10. Physical storage
 
-The canonical path resolves as follows:
+The canonical journal root resolves as follows:
 
-1. `$XDG_DATA_HOME/acta/events.jsonl` when `XDG_DATA_HOME` is set.
-2. `$HOME/.local/share/acta/events.jsonl` otherwise.
+1. `$XDG_DATA_HOME/acta/events/` when `XDG_DATA_HOME` is set.
+2. `$HOME/.local/share/acta/events/` otherwise.
 
-The parent directory and journal must be accessible only to the owning user.
+The journal is partitioned by the UTC year and month of `recorded_at`:
 
-Each event is encoded as one compact JSON object followed by `LF`. Writers must
-not emit comments, blank records, trailing commas, or a top-level JSON array.
+```text
+events/<year>/<month>.jsonl
+```
+
+For example, an event recorded at `2026-08-05T14:22:31.418Z` belongs in
+`events/2026/08.jsonl`.
+
+The journal root, year directories, and segments must be accessible only to the
+owning user. Each event is encoded as one compact JSON object followed by `LF`.
+Writers must not emit comments, blank records, trailing commas, or a top-level
+JSON array.
+
+The ordered set of monthly segments is the sole canonical event store. The
+segment selected by the service recording timestamp is the active append
+segment. After the service begins writing a later month, earlier monthly
+segments are immutable.
 
 ## 11. Append and locking lifecycle
 
@@ -230,22 +246,41 @@ One recording operation follows this lifecycle:
 
 1. The CLI resolves Git metadata without changing the repository.
 2. The service receives and validates the bounded record request.
-3. The service prepares the complete event in memory.
-4. The service acquires the journal write lock.
-5. The service validates the journal tail and checks the milestone key.
-6. The service appends one complete event and newline.
-7. The service flushes the append according to the host filesystem contract.
-8. The service releases the lock.
+3. The service acquires the journal write lock.
+4. The service recovers any known pending operation.
+5. The service generates `recorded_at` and the event ID, selects the monthly
+   segment, validates its tail, and checks the global
+   milestone key index.
+6. The service prepares the complete event in memory.
+7. The service writes and syncs one pending operation containing the target
+   segment, original segment length, and complete event line.
+8. The service appends the complete event and newline to the active segment.
+9. The service syncs the active segment.
+10. The service removes the pending operation.
+11. The service updates its derived indexes and releases the lock.
 
 If publication fails, the operation must expose an error and must not report a
 new event ID as committed.
+
+The pending operation resolves as follows:
+
+1. `$XDG_STATE_HOME/acta/pending.json` when `XDG_STATE_HOME` is set.
+2. `$HOME/.local/state/acta/pending.json` otherwise.
+
+Only one pending operation may exist because the service serializes canonical
+writes. Recovery may complete a missing append, accept an already complete
+event, or replace a matching partial terminal prefix with the complete pending
+event. Any other mismatch is corruption and blocks writes to the affected
+active segment. The pending file and its parent directory are accessible only
+to the owning user.
 
 The initial concurrency contract targets local filesystems on one host. Network
 filesystems and distributed locks are outside the initial model.
 
 ## 12. Ordering
 
-Raw journal order is append order.
+Raw journal order is segment path order followed by append order within each
+segment. UTC year and month path ordering matches `recorded_at` ordering.
 
 Default user-facing chronological order is `recorded_at`, then `id`. Reports
 may group by repository or local calendar date but must preserve deterministic
@@ -265,12 +300,16 @@ commit            optional full or unambiguous abbreviated hash
 text              optional text query
 recorded_from     optional inclusive instant
 recorded_to       optional exclusive instant
-limit             required effective positive limit
+limit             required effective positive limit, maximum 1,000
 order             ascending or descending
 ```
 
 Text search initially matches normalized repository name, commit subject, and
 note. Correction reasons are searchable when corrections are included.
+
+Time-bounded queries read only the monthly segments that can overlap the
+requested interval. Queries without a time bound may use the global derived
+index or scan all canonical segments.
 
 Query output contains:
 
@@ -282,21 +321,48 @@ truncated         whether additional matches exist
 ```
 
 Raw export is a separate operation and must not be the implicit behavior of a
-search or report command.
+search or report command. A query stops before its encoded response exceeds 8
+MiB and sets `truncated` when matching events remain.
 
 ## 14. Derived data
 
-An implementation may create a search index, offset map, or integrity cache.
-Derived data:
+The service maintains global event ID and milestone key indexes across all
+monthly segments. An implementation may also create a search index, offset map,
+or integrity cache. Derived data:
 
-- is stored outside `events.jsonl`;
+- is stored outside the canonical monthly segments;
 - is not required to understand the journal;
 - can be deleted and rebuilt without information loss;
 - must not change event identity or correction semantics.
 
-## 15. Model invariants
+## 15. Integrity verification
 
-- `events.jsonl` is the sole canonical event store in the initial product.
+Active verification parses the current monthly segment. Full verification
+parses all canonical segments in path order and rebuilds the global invariants.
+
+Verification checks:
+
+- valid UTF-8 and one complete JSON object per line;
+- recognized schema versions and valid event fields;
+- segment placement derived from `recorded_at` in UTC;
+- unique event IDs across all segments;
+- unique milestone keys across all segments;
+- correction targets that identify earlier events;
+- deterministic event ordering.
+
+Verification is read-only. It reports the segment, line, and byte offset of a
+failure when available. It does not repair corruption. Narrow pending-operation
+recovery under Section 11 is part of the append transaction and is not general
+integrity repair.
+
+The initial model does not require historical segment checksums. Scheduled
+active verification and explicit or monthly full semantic verification are the
+initial integrity mechanisms.
+
+## 16. Model invariants
+
+- The ordered monthly JSONL segments are the sole canonical event store in the
+  initial product.
 - The Acta service is the sole canonical journal writer.
 - Every published line is a valid `acta/v1` event.
 - Event IDs are unique.
@@ -305,6 +371,8 @@ Derived data:
 - Credentials are absent from repository references.
 - Corrections append history and never rewrite it.
 - Derived indexes are disposable.
+- Completed monthly segments are immutable.
+- A pending operation is recoverable state, not a published event.
 - Agent runtime and terminal session details are optional provenance, not
   business identity.
 - No event contains a prompt, transcript, diff, file contents, or hidden

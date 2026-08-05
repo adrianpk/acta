@@ -71,16 +71,62 @@ agent hosts.
 
 ### 3.1 Service boundary
 
-Acta is installed as a persistent local service named `acta.service`. The
-`acta` executable is the command-line client and may also contain the service
-entrypoint.
+Acta is installed as a per-user local service named `acta.service`. A companion
+`acta.socket` unit provides socket activation. The `acta` executable is the
+command-line client and also contains the service entrypoint.
 
 The service is the sole canonical journal writer. Clients must not fall back to
-editing `events.jsonl` directly when the service is unavailable.
+editing canonical journal segments directly when the service is unavailable.
 
-Client-to-service transport must be local and must not require an external
-network service. The exact IPC mechanism and service-manager scope remain open
-design decisions.
+Client-to-service transport uses a Unix domain stream socket at:
+
+```text
+$XDG_RUNTIME_DIR/acta/acta.sock
+```
+
+The runtime directory uses mode `0700`. The socket uses mode `0600`.
+
+Each connection contains one bounded JSON request and receives one JSON
+response before it closes. Requests identify the `acta/v1` protocol, one
+operation, and its parameters. Responses contain either a result or a stable
+error code and message. Normal requests are limited to 64 KiB. Normal responses
+are limited to 8 MiB. Queries stop at 1,000 events or the response byte limit,
+whichever occurs first, and report truncation. A future full export must use a
+separate streaming operation.
+
+Request and response envelopes have these shapes:
+
+```json
+{"protocol":"acta/v1","operation":"record","params":{}}
+```
+
+```json
+{"protocol":"acta/v1","ok":true,"result":{}}
+```
+
+```json
+{"protocol":"acta/v1","ok":false,"error":{"code":"invalid_request","message":"request exceeds the allowed size"}}
+```
+
+The protocol does not use request files, TCP, HTTP, gRPC, or an external
+network service. Connecting to `acta.socket` starts `acta.service` when it is
+not already running. The service may remain active after the request completes.
+
+The initial service error codes are:
+
+```text
+invalid_request
+unsupported_protocol
+unknown_operation
+not_found
+invalid_event
+journal_corrupt
+journal_unavailable
+internal_error
+```
+
+An idempotent duplicate record is a successful response with the existing
+event ID and `recorded` set to `false`. It is not an error response.
 
 ### 3.2 Chronicle boundary
 
@@ -88,9 +134,10 @@ A chronicle is a logical, queryable view of milestone events. Acta may present
 chronicles by project, agent session, topic, or time interval without requiring
 one physical file per view.
 
-Whether Acta persists a stable session identity and exposes one durable book
-per session remains unresolved. Cross-session project and time queries do not
-depend on that decision.
+The initial product does not persist stable agent-session identity or one stored
+book per session. Session-oriented chronicles are deferred query projections
+and require reliable provenance in a later schema version. Cross-session
+project and time queries do not depend on session identity.
 
 ## 4. Significance policy
 
@@ -188,27 +235,101 @@ event.
 
 ## 8. Storage contract
 
-The default journal path is:
+The default journal root is:
 
 ```text
-$XDG_DATA_HOME/acta/events.jsonl
+$XDG_DATA_HOME/acta/events/
 ```
 
-When `XDG_DATA_HOME` is unset, the path is:
+When `XDG_DATA_HOME` is unset, the root is:
 
 ```text
-~/.local/share/acta/events.jsonl
+~/.local/share/acta/events/
 ```
 
 The location is outside `~/.codex` and `~/.pi` because the journal belongs to
 the user and is shared by multiple agent runtimes.
 
+The journal is segmented by the UTC year and month of `recorded_at`:
+
+```text
+events/
+    2026/
+        08.jsonl
+        09.jsonl
+    2027/
+        01.jsonl
+```
+
+The ordered set of monthly segments is the canonical journal. Each event is one
+complete compact JSON object followed by `LF`. The segment selected by the
+service recording timestamp is the only segment open for append. After the
+service begins writing a later month, earlier monthly segments are immutable.
+
 The initial product is single-user and single-host. Cross-host replication,
 backup, and conflict resolution are outside the initial scope.
 
-The service must serialize concurrent clients, validate the existing tail,
-append a complete UTF-8 JSON object followed by one newline, and ensure a
-failed write does not leave a partial published event.
+The service must serialize concurrent clients, validate the active segment
+tail, append a complete UTF-8 JSON object followed by one newline, and sync the
+append before confirming success. A global derived index supports event lookup
+and milestone deduplication across all segments. The index is not canonical and
+must be rebuildable from the monthly JSONL files.
+
+### 8.1 Interrupted append recovery
+
+Before appending, the service writes one pending operation to:
+
+```text
+$XDG_STATE_HOME/acta/pending.json
+```
+
+When `XDG_STATE_HOME` is unset, the path is:
+
+```text
+~/.local/state/acta/pending.json
+```
+
+The pending operation contains the target segment, its original byte length,
+and the complete event line. The service syncs the pending operation before it
+appends and syncs the segment before it removes the pending operation.
+The state directory and pending file are accessible only to the owning user.
+
+After an interrupted append, the service may recover only these known states:
+
+- append the pending event when the segment still has its original length;
+- clear the pending operation when the complete event is already present;
+- remove a partial terminal prefix that matches the pending event, restore the
+  original length, and append the complete event again.
+
+Any other mismatch is corruption. The service must preserve the files, reject
+new writes to the affected active segment, and report the exact segment, line,
+and byte offset when available. It must not perform general automatic repair.
+
+### 8.2 Integrity verification
+
+The CLI provides:
+
+```sh
+acta verify
+acta verify --full
+```
+
+`acta verify` validates the active monthly segment. `acta verify --full`
+validates every canonical segment and the global invariants across them.
+
+An `acta-verify.timer` per-user timer runs the active-segment verification each
+day at 03:00 in the host's local timezone. The timer uses persistent scheduling
+so a missed run occurs after the host becomes available. At the start of a new
+month, the scheduled verification also runs a full-journal validation.
+
+Verification checks UTF-8, line framing, JSON decoding, schema versions, field
+rules, event ID uniqueness, milestone key uniqueness, correction targets,
+event order, and the correspondence between `recorded_at` and the segment path.
+It is read-only and does not repair corruption.
+
+The initial product does not calculate or periodically scan historical file
+checksums. Full semantic verification is available explicitly and at the
+monthly boundary without adding a separate checksum lifecycle.
 
 ## 9. Retrieval contract
 
@@ -290,12 +411,22 @@ The initial product does not:
 - Acta is implemented in Go as module `forge.adrianpk.com/adrianpk/acta`.
 - Acta includes a persistent local service named `acta.service` and a
   command-line client named `acta`.
+- Acta runs as a per-user service with `acta.socket` activation.
+- The client and service exchange bounded JSON requests and responses over a
+  protected Unix domain socket.
 - The service is the sole canonical journal writer.
 - Recording happens at the natural boundary after a significant commit.
 - The agent decides significance using a short shared policy.
 - One optional note is the only normal manual input.
 - Git and repository facts are derived by the CLI.
-- Storage is global to the user, append-only, and outside agent-specific homes.
+- Storage is global to the user, append-only, segmented by UTC month, and
+  outside agent-specific homes.
+- One pending operation provides bounded recovery from an interrupted append.
+- Daily verification covers the active segment. Monthly and explicit full
+  verification cover all canonical segments.
+- The initial product does not maintain historical file checksums.
+- Stable session identity and per-session stored books are not part of the
+  initial product.
 - Retrieval is explicit, filtered, and bounded.
 - A separate skill provides searches and periodic summaries.
 - The journal stores evidence pointers and significance, not complete work
@@ -303,15 +434,8 @@ The initial product does not:
 
 ## 15. Open questions
 
-- The local IPC mechanism between the CLI and service.
-- Whether `acta.service` runs as a per-user or system-wide service-manager unit.
-- Whether the service starts eagerly, through socket activation, or on demand.
-- Whether session identity is durable and whether per-session books are stored
-  entities or query projections.
 - Whether a later version should support explicit backfill of a non-`HEAD`
   commit.
-- Whether the repository path should be retained indefinitely or treated as a
-  mutable location hint.
 - How a future multi-host journal would synchronize while preserving append-only
   semantics.
 - Whether generated reports need a separate durable artifact format.
@@ -323,14 +447,14 @@ question before implementing the affected service or persistence boundary.
 
 The specification is satisfied when an implementation can demonstrate that:
 
-1. The Acta service starts under the selected service-manager contract and
-   preserves the journal across a restart.
+1. Connecting to the protected per-user Unix socket activates the Acta service
+   and the journal remains available across a service restart.
 2. An agent records a significant `HEAD` commit with one CLI command.
 3. The CLI derives the repository, remote identity, branch, full commit hash,
    commit subject, timestamp, and worktree state.
 4. An optional single-line note is stored without requiring other parameters.
 5. Repeating `record` for the same repository and commit creates no duplicate.
-6. Concurrent clients cannot corrupt or interleave JSONL events.
+6. Concurrent clients cannot corrupt or interleave monthly JSONL events.
 7. The CLI does not edit canonical storage when the service is unavailable.
 8. Published events cannot be modified through ordinary CLI operations.
 9. A correction is represented by a new linked event.
@@ -342,3 +466,9 @@ The specification is satisfied when an implementation can demonstrate that:
     storage.
 14. The journal contains no prompts, transcripts, diffs, credentials, or hidden
     reasoning.
+15. An interrupted append is recovered idempotently from the pending operation
+    without rewriting a previously published event.
+16. Daily verification detects invalid active-segment framing or event data and
+    reports the exact location when available.
+17. Full verification detects invalid event data and global identity or
+    correction violations across monthly segments.
