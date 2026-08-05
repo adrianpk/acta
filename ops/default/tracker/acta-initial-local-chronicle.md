@@ -7,9 +7,9 @@ Slice strategy: layered
 Plan: `ops/default/plan/acta-initial-local-chronicle.md`
 Specification: `ops/default/spec/drafts/acta-system-specification-draft.md`
 Model: `ops/default/spec/drafts/acta-system-specification-draft-model.md`
-Progress: 2 of 4 slices completed
-Active slice: Slice 3, Bounded Retrieval and Corrections
-Active slice status: reviewing
+Progress: 3 of 4 slices completed
+Active slice: Slice 4, Integrity and Operational Completion
+Active slice status: active
 
 ## Execution Gate
 
@@ -22,8 +22,8 @@ approval state is committed to `dev`.
 |---|---|---|---|---|
 | Slice 1: Durable Journal Core | delivered | `feat/acta-journal-core` | `feat: add durable monthly journal core` | `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-journal-core.md` |
 | Slice 2: Local Service and Recording | delivered | `feat/acta-record-service` | `feat: add local service recording workflow` | `ops/default/report/slices/acta-initial-local-chronicle/slice-2-local-service-and-recording.md` |
-| Slice 3: Bounded Retrieval and Corrections | reviewing | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
-| Slice 4: Integrity and Operational Completion | pending | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
+| Slice 3: Bounded Retrieval and Corrections | delivered | `feat/acta-retrieval` | `feat: add bounded chronicle retrieval` | `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-retrieval-and-corrections.md` |
+| Slice 4: Integrity and Operational Completion | active | `feat/acta-integrity` | `feat: add journal integrity verification` | `ops/default/report/slices/acta-initial-local-chronicle/slice-4-integrity-and-operational-completion.md` |
 
 ## Slice 1 Tasks
 
@@ -97,3 +97,5 @@ None recorded.
   and activated Slice 3.
 - 2026-08-05: Completed T3.1, T3.2, and T3.3 and moved Slice 3 to review.
 - 2026-08-05: Opened Slice 3 pull request `#3` against `dev`.
+- 2026-08-05: Verified pull request `#3` merged into `dev`, delivered Slice 3,
+  and activated Slice 4.
