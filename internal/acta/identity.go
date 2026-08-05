@@ -1,0 +1,119 @@
+package acta
+
+import (
+	"fmt"
+	"net"
+	"net/url"
+	"path"
+	"path/filepath"
+	"strings"
+)
+
+// NewRepositoryReference creates a validated repository reference from facts
+// collected by the caller.
+func NewRepositoryReference(root, remote string) (RepositoryReference, error) {
+	if !filepath.IsAbs(root) {
+		return RepositoryReference{}, fmt.Errorf("create repository reference: root must be absolute")
+	}
+	root = filepath.Clean(root)
+	name := filepath.Base(root)
+	if name == string(filepath.Separator) || name == "." {
+		return RepositoryReference{}, fmt.Errorf("create repository reference: root must identify a repository directory")
+	}
+
+	reference := RepositoryReference{Name: name, Root: root}
+	if strings.TrimSpace(remote) == "" {
+		reference.Identity = (&url.URL{Scheme: "file", Path: filepath.ToSlash(root)}).String()
+	} else {
+		normalized, err := NormalizeRepositoryRemote(remote)
+		if err != nil {
+			return RepositoryReference{}, err
+		}
+		reference.Identity = normalized
+		reference.Remote = normalized
+	}
+
+	if err := reference.Validate(); err != nil {
+		return RepositoryReference{}, err
+	}
+	return reference, nil
+}
+
+// NormalizeRepositoryRemote returns a credential-free canonical repository URL.
+func NormalizeRepositoryRemote(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("normalize repository remote: remote is required")
+	}
+	if !strings.Contains(raw, "://") {
+		converted, ok := convertSCPLikeRemote(raw)
+		if !ok {
+			return "", fmt.Errorf("normalize repository remote: unsupported remote syntax")
+		}
+		raw = converted
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("normalize repository remote: %w", err)
+	}
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	switch parsed.Scheme {
+	case "ssh", "git", "http", "https":
+	default:
+		return "", fmt.Errorf("normalize repository remote: unsupported scheme %q", parsed.Scheme)
+	}
+	if parsed.Hostname() == "" {
+		return "", fmt.Errorf("normalize repository remote: host is required")
+	}
+
+	parsed.Host = canonicalHost(parsed.Hostname(), parsed.Port())
+	if parsed.Scheme == "ssh" || parsed.Scheme == "git" {
+		if parsed.User != nil && parsed.User.Username() != "" {
+			parsed.User = url.User(parsed.User.Username())
+		} else {
+			parsed.User = nil
+		}
+	} else {
+		parsed.User = nil
+	}
+
+	repositoryPath := path.Clean("/" + strings.TrimLeft(parsed.Path, "/"))
+	if repositoryPath == "/" || repositoryPath == "/." {
+		return "", fmt.Errorf("normalize repository remote: repository path is required")
+	}
+	if !strings.HasSuffix(repositoryPath, ".git") {
+		repositoryPath += ".git"
+	}
+	parsed.Path = repositoryPath
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.ForceQuery = false
+	parsed.Fragment = ""
+
+	return parsed.String(), nil
+}
+
+func convertSCPLikeRemote(raw string) (string, bool) {
+	separator := strings.IndexByte(raw, ':')
+	if separator <= 0 || separator == len(raw)-1 {
+		return "", false
+	}
+	authority := raw[:separator]
+	repositoryPath := raw[separator+1:]
+	if strings.ContainsAny(authority, "/\\") || strings.HasPrefix(repositoryPath, "//") {
+		return "", false
+	}
+	return "ssh://" + authority + "/" + strings.TrimLeft(repositoryPath, "/"), true
+}
+
+func canonicalHost(host, port string) string {
+	host = strings.ToLower(host)
+	if port != "" {
+		return net.JoinHostPort(host, port)
+	}
+	if strings.Contains(host, ":") {
+		return "[" + host + "]"
+	}
+	return host
+}

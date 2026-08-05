@@ -39,6 +39,8 @@ package and a passing repository.
   shutdown paths.
 - Keep the service as the sole canonical journal writer.
 - Keep monthly JSONL segments canonical and all indexes disposable.
+- Keep configuration under `~/.config/acta/` and persistent files under
+  `~/.acta/`.
 - Do not start, enable, or modify live user services during implementation
   validation without separate authorization.
 

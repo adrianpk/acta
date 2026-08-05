@@ -108,7 +108,7 @@ note              optional SignificanceNote
 Example:
 
 ```json
-{"schema_version":"acta/v1","id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","type":"milestone","recorded_at":"2026-08-05T14:22:31.418Z","execution":{"harness":"pi","harness_version":"0.42.0","model":"openai/gpt-5.6"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","authored_at":"2026-08-05T14:18:03.000Z","committed_at":"2026-08-05T14:20:47.000Z","worktree_clean":true},"note":"Reusable protocol normalization across agent-enabled projects"}
+{"schema_version":"acta/v1","id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","type":"milestone","recorded_at":"2026-08-05T14:22:31.418Z","execution":{"harness":"pi","harness_version":"0.42.0","model":"openai/gpt-5.6"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","authored_at":"2026-08-05T14:18:03.000Z","committed_at":"2026-08-05T14:20:47.000Z","worktree_clean":true},"note":"Reusable protocol behavior across agent-enabled projects"}
 ```
 
 ## 5. RepositoryReference
@@ -222,7 +222,7 @@ reason            SignificanceNote
 Example:
 
 ```json
-{"schema_version":"acta/v1","id":"01K1Z9D5R9F5J7Z7P4J8X0QKTS","type":"correction","recorded_at":"2026-08-05T16:04:18.031Z","execution":{"harness":"pi","harness_version":"0.42.0","model":"openai/gpt-5.6"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","authored_at":"2026-08-05T14:18:03.000Z","committed_at":"2026-08-05T14:20:47.000Z","worktree_clean":true},"note":"Normalize the reusable protocol across Codex and Pi workspaces","target_id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","reason":"Clarify the supported agent harnesses"}
+{"schema_version":"acta/v1","id":"01K1Z9D5R9F5J7Z7P4J8X0QKTS","type":"correction","recorded_at":"2026-08-05T16:04:18.031Z","execution":{"harness":"pi","harness_version":"0.42.0","model":"openai/gpt-5.6"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","authored_at":"2026-08-05T14:18:03.000Z","committed_at":"2026-08-05T14:20:47.000Z","worktree_clean":true},"note":"Apply the reusable protocol to supported agent workspaces","target_id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","reason":"Clarify the supported agent harnesses"}
 ```
 
 Rules:
@@ -248,10 +248,9 @@ and correction in journal order.
 
 ## 10. Physical storage
 
-The canonical journal root resolves as follows:
-
-1. `$XDG_DATA_HOME/acta/events/` when `XDG_DATA_HOME` is set.
-2. `$HOME/.local/share/acta/events/` otherwise.
+Configuration resolves under `$HOME/.config/acta/`. Persistent and
+transactional files resolve under `$HOME/.acta/`. The canonical journal root is
+`$HOME/.acta/events/`.
 
 The journal is partitioned by the UTC year and month of `recorded_at`:
 
@@ -294,10 +293,7 @@ One recording operation follows this lifecycle:
 If publication fails, the operation must expose an error and must not report a
 new event ID as committed.
 
-The pending operation resolves as follows:
-
-1. `$XDG_STATE_HOME/acta/pending.json` when `XDG_STATE_HOME` is set.
-2. `$HOME/.local/state/acta/pending.json` otherwise.
+The pending operation resolves to `$HOME/.acta/pending.json`.
 
 Only one pending operation may exist because the service serializes canonical
 writes. Recovery may complete a missing append, accept an already complete

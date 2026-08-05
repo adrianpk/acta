@@ -243,20 +243,26 @@ the correction remains independently searchable and understandable.
 
 ## 8. Storage contract
 
-The default journal root is:
+Acta configuration belongs under:
 
 ```text
-$XDG_DATA_HOME/acta/events/
+~/.config/acta/
 ```
 
-When `XDG_DATA_HOME` is unset, the root is:
+Acta persistent and transactional files belong under:
 
 ```text
-~/.local/share/acta/events/
+~/.acta/
 ```
 
-The location is outside `~/.codex` and `~/.pi` because the journal belongs to
-the user and is shared by multiple agent runtimes.
+The canonical journal root is:
+
+```text
+~/.acta/events/
+```
+
+These locations are outside `~/.codex` and `~/.pi` because Acta belongs to the
+user and is shared by multiple agent runtimes.
 
 The journal is segmented by the UTC year and month of `recorded_at`:
 
@@ -288,13 +294,7 @@ must be rebuildable from the monthly JSONL files.
 Before appending, the service writes one pending operation to:
 
 ```text
-$XDG_STATE_HOME/acta/pending.json
-```
-
-When `XDG_STATE_HOME` is unset, the path is:
-
-```text
-~/.local/state/acta/pending.json
+~/.acta/pending.json
 ```
 
 The pending operation contains the target segment, its original byte length,
@@ -442,6 +442,7 @@ The initial product does not:
 - Acta service name and version are not repeated in each event.
 - Corrections repeat the effective milestone context and remain independently
   searchable while preserving their target link.
+- Configuration uses `~/.config/acta/`. Persistent files use `~/.acta/`.
 - Storage is global to the user, append-only, segmented by UTC month, and
   outside agent-specific homes.
 - One pending operation provides bounded recovery from an interrupted append.
