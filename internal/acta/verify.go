@@ -168,6 +168,15 @@ func verifyPaths(ctx context.Context, root string, paths []string, index *journa
 }
 
 func verifySegment(ctx context.Context, root, segmentPath string, index *journalIndex) (resultErr error) {
+	exists, err := regularFileExists(segmentPath)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return integrityFailure(segmentPath, 0, 0, "journal segment disappeared during verification")
+	}
+
 	file, err := os.Open(segmentPath)
 	if err != nil {
 		return fmt.Errorf("open journal segment %q: %w", segmentPath, err)
