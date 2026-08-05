@@ -5,7 +5,7 @@ Delivery set: Acta Initial Local Chronicle
 Plan: `ops/default/plan/acta-initial-local-chronicle.md`
 Tracker: `ops/default/tracker/acta-initial-local-chronicle.md`
 Branch: `feat/acta-record-service`
-PR: pending
+PR: `#2`
 
 ## Purpose
 
