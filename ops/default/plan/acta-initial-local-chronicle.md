@@ -73,7 +73,10 @@ systemd assets or test fixtures.
 The delivery set includes:
 
 - `acta/v1` milestone and correction models;
+- optional execution harness, harness version, and model provenance;
 - repository identity and Git `HEAD` metadata collection;
+- distinct Git author, Git committer, and Acta recording timestamps;
+- self-contained correction events that preserve an append-only audit link;
 - UTC monthly JSONL storage and global derived indexes;
 - idempotent milestone recording;
 - interrupted append recovery through one pending operation;
@@ -109,8 +112,9 @@ Report: `ops/default/report/slices/acta-initial-local-chronicle/slice-1-durable-
 
 Tasks:
 
-- `T1.1` Define configuration, event values, validation, ULID generation, and
-  repository identity normalization with table-driven tests.
+- `T1.1` Define configuration, self-contained milestone and correction values,
+  optional execution provenance, validation, ULID generation, repository
+  identity normalization, and table-driven tests.
 - `T1.2` Implement monthly segment selection, append-only journal loading,
   global event and milestone indexes, and idempotent append with tests.
 - `T1.3` Implement the pending-operation transaction, interrupted append
@@ -141,8 +145,9 @@ Tasks:
 
 - `T2.1` Implement the bounded `acta/v1` JSON envelopes, Unix socket client and
   server, deadlines, limits, stable errors, and transport tests.
-- `T2.2` Implement read-only Git metadata collection, remote sanitization, and
-  the record workflow with idempotency and failure tests.
+- `T2.2` Implement read-only Git metadata and timestamps, remote sanitization,
+  optional agent-supplied execution provenance, and the record workflow with
+  idempotency and failure tests.
 - `T2.3` Add root `main.go`, CLI dispatch for `record` and `serve`, graceful
   service lifecycle, and end-to-end client-service tests.
 - `T2.4` Add per-user `acta.service` and `acta.socket` assets and validate socket
@@ -175,7 +180,8 @@ Report: `ops/default/report/slices/acta-initial-local-chronicle/slice-3-bounded-
 Tasks:
 
 - `T3.1` Implement cross-segment filtering, deterministic ordering, text
-  matching, correction application, and bounded query results with tests.
+  matching, self-contained correction chains, harness and model filters, Git
+  time filters, and bounded query results with tests.
 - `T3.2` Implement `show`, `search`, and `correct` service and CLI operations,
   including not-found, invalid-target, count-limit, and byte-limit behavior.
 - `T3.3` Implement `report` with explicit intervals, local or supplied
@@ -210,7 +216,8 @@ Tasks:
 - `T4.2` Add `verify` CLI and service operations plus the per-user daily timer
   with monthly full-verification behavior.
 - `T4.3` Add end-to-end acceptance coverage for recovery, concurrency, IPC
-  limits, cross-segment correction, verification, and restart-safe indexing.
+  limits, self-contained cross-segment correction, execution filtering,
+  verification, and restart-safe indexing.
 
 Validation:
 

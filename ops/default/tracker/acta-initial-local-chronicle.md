@@ -29,7 +29,7 @@ both artifacts have status `approved`, and that state is committed to `dev`.
 
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
-| `T1.1` | Define configuration, event values, validation, ULID generation, and repository identity normalization with tests. | pending | pending | pending |
+| `T1.1` | Define self-contained event values, optional execution provenance, validation, ULID generation, repository identity normalization, and tests. | pending | pending | pending |
 | `T1.2` | Implement monthly segment selection, journal loading, global indexes, and idempotent append with tests. | pending | pending | pending |
 | `T1.3` | Implement pending-operation recovery, corruption blocking, and concurrent writer tests. | pending | pending | pending |
 
@@ -38,7 +38,7 @@ both artifacts have status `approved`, and that state is committed to `dev`.
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
 | `T2.1` | Implement bounded JSON envelopes, Unix socket transport, limits, errors, and tests. | pending | pending | pending |
-| `T2.2` | Implement Git metadata collection, remote sanitization, recording, idempotency, and failure tests. | pending | pending | pending |
+| `T2.2` | Implement Git metadata and timestamps, remote sanitization, optional execution provenance, recording, idempotency, and failure tests. | pending | pending | pending |
 | `T2.3` | Add root `main.go`, `record` and `serve`, lifecycle behavior, and end-to-end tests. | pending | pending | pending |
 | `T2.4` | Add and validate per-user service and socket activation assets without changing the live service. | pending | pending | pending |
 
@@ -46,7 +46,7 @@ both artifacts have status `approved`, and that state is committed to `dev`.
 
 | ID | Task | Status | Commit | Validation |
 |---|---|---|---|---|
-| `T3.1` | Implement filtering, ordering, text matching, correction application, and bounded results with tests. | pending | pending | pending |
+| `T3.1` | Implement filtering, ordering, text matching, self-contained correction chains, execution and Git-time filters, and bounded results with tests. | pending | pending | pending |
 | `T3.2` | Implement `show`, `search`, and `correct` service and CLI operations with boundary tests. | pending | pending | pending |
 | `T3.3` | Implement interval reports, timezone handling, grouped and JSON output, and cross-month tests. | pending | pending | pending |
 
@@ -56,7 +56,7 @@ both artifacts have status `approved`, and that state is committed to `dev`.
 |---|---|---|---|---|
 | `T4.1` | Implement active and full verification with exact corruption diagnostics. | pending | pending | pending |
 | `T4.2` | Add `verify` operations and the daily per-user timer with monthly full-verification behavior. | pending | pending | pending |
-| `T4.3` | Complete end-to-end recovery, concurrency, IPC, correction, verification, and restart tests. | pending | pending | pending |
+| `T4.3` | Complete end-to-end recovery, concurrency, IPC, self-contained correction, execution filtering, verification, and restart tests. | pending | pending | pending |
 
 ## Validation Log
 
@@ -71,3 +71,5 @@ plan commit handoff.
 
 - 2026-08-05: Proposed the four-slice delivery map and created the execution
   tracker on `dev`.
+- 2026-08-05: Aligned proposed tasks with self-contained corrections, Git
+  timestamps, and optional execution provenance.

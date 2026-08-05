@@ -58,7 +58,8 @@ acta record
 
 - **User:** owns the journal and asks for records, searches, or summaries.
 - **Working agent:** decides whether a completed commit is significant and
-  invokes Acta.
+  invokes Acta. Its integration may supply optional harness, harness version,
+  and model provenance without user input.
 - **CLI client:** derives local repository facts and sends bounded requests to
   the Acta service.
 - **Acta service:** validates requests, owns canonical storage, serializes
@@ -191,7 +192,13 @@ The only normal user-supplied input is an optional single-line note explaining
 why the commit matters.
 
 Repository name, root path, remote identity, branch, commit hash, commit
-subject, timestamp, and worktree state must be derived automatically.
+subject, author time, committer time, and worktree state must be derived
+automatically. The service assigns the separate journal recording time.
+
+An agent integration may automatically supply an optional execution harness,
+harness version, and model identifier when it knows those values reliably. A
+manual `acta record` does not require them. Acta must not infer execution
+provenance by inspecting parent processes.
 
 ### 6.3 Output
 
@@ -231,7 +238,8 @@ The journal stores milestone metadata only. It must not store:
 
 The journal is logically append-only. Published events must not be edited or
 deleted through the CLI. A correction is a new event that references an older
-event.
+event and repeats its effective execution, repository, Git, and note context so
+the correction remains independently searchable and understandable.
 
 ## 8. Storage contract
 
@@ -341,12 +349,16 @@ The CLI must support these conceptual operations:
 ```sh
 acta show --commit <commit> --json
 acta search --query <text> --limit <count> --json
+acta search --query <text> --harness <name> --model <identifier> --limit <count> --json
 acta report --from <date> --to <date> --json
 ```
 
-Queries may filter by repository, time range, event type, or text. Every search
-must use an explicit or safe default result limit. Machine-readable output must
-contain only the matching records and query metadata.
+Queries may filter by repository, recording time, Git author time, Git
+committer time, event type, execution harness, model, or text. Every search must
+use an explicit or safe default result limit. Machine-readable output must
+contain only the matching records and query metadata. Effective correction
+results repeat their repository, Git, execution, and note context and require no
+event join for ordinary inspection.
 
 The initial text search may be deterministic rather than semantic. A retrieval
 skill may use the bounded result set to rank, explain, or summarize matches.
@@ -359,7 +371,9 @@ A dedicated skill may provide user-facing workflows such as:
 - locate the exact repository and commit for a prior decision;
 - summarize activity for a day, week, or explicit interval;
 - group milestones by project or topic;
-- compare related milestones across projects.
+- compare related milestones across projects;
+- compare similar issues across agent harnesses or models;
+- distinguish Git author time, commit time, and Acta recording time.
 
 The skill must call the CLI with a bounded query before reading event content.
 It must not load the entire journal unless the user explicitly requests a full
@@ -381,6 +395,8 @@ explicitly records or saves them through a separate workflow.
 ## 12. Security and privacy
 
 - Notes must be short plain text and must not contain secrets.
+- Execution provenance must contain identifier strings and must not contain
+  prompts, environment values, credentials, or session data.
 - Git remotes must be normalized without embedding credentials.
 - URL user information, tokens, and credential-bearing query parameters must be
   removed before persistence.
@@ -419,6 +435,13 @@ The initial product does not:
 - The agent decides significance using a short shared policy.
 - One optional note is the only normal manual input.
 - Git and repository facts are derived by the CLI.
+- Git author and committer times are stored separately from the Acta recording
+  time.
+- Optional execution provenance distinguishes the agent harness, harness
+  version, and model associated with the work.
+- Acta service name and version are not repeated in each event.
+- Corrections repeat the effective milestone context and remain independently
+  searchable while preserving their target link.
 - Storage is global to the user, append-only, segmented by UTC month, and
   outside agent-specific homes.
 - One pending operation provides bounded recovery from an interrupted append.
@@ -451,13 +474,14 @@ The specification is satisfied when an implementation can demonstrate that:
    and the journal remains available across a service restart.
 2. An agent records a significant `HEAD` commit with one CLI command.
 3. The CLI derives the repository, remote identity, branch, full commit hash,
-   commit subject, timestamp, and worktree state.
+   commit subject, author time, committer time, and worktree state.
 4. An optional single-line note is stored without requiring other parameters.
 5. Repeating `record` for the same repository and commit creates no duplicate.
 6. Concurrent clients cannot corrupt or interleave monthly JSONL events.
 7. The CLI does not edit canonical storage when the service is unavailable.
 8. Published events cannot be modified through ordinary CLI operations.
-9. A correction is represented by a new linked event.
+9. A correction is represented by a new linked, self-contained event that can
+   be understood and searched without reading its target.
 10. Recording does not modify Git state or project files.
 11. Search and report operations return bounded machine-readable results.
 12. A weekly report can be produced from an explicit date range without loading
@@ -472,3 +496,5 @@ The specification is satisfied when an implementation can demonstrate that:
     reports the exact location when available.
 17. Full verification detects invalid event data and global identity or
     correction violations across monthly segments.
+18. A query can filter comparable milestones by execution harness or model and
+    can distinguish author, committer, and recording times.

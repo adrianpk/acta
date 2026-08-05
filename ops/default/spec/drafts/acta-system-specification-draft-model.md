@@ -36,7 +36,7 @@ schema_version    fixed string: acta/v1
 id                EventID
 type              milestone or correction
 recorded_at       UTC timestamp
-producer          Producer
+execution         optional ExecutionContext
 ```
 
 Unknown fields must be tolerated by readers. Writers must not change the
@@ -59,19 +59,32 @@ Rules:
 `recorded_at` is an RFC 3339 timestamp normalized to UTC with sufficient
 precision to order events created in the same second.
 
-The original commit time is not used as the recording time. Git commit dates
-may be retained as derived Git metadata in a future schema version.
+`recorded_at` is the publication time assigned by the Acta service. It is not
+the Git author or committer time. Those values are stored separately in the Git
+reference.
 
-### 3.3 Producer
+### 3.3 ExecutionContext
 
 ```text
-name              fixed string: acta
-version           Acta service semantic version
-runtime           optional agent runtime label
+harness           agent harness name
+harness_version   optional harness version
+model             optional provider-qualified model identifier
 ```
 
-`runtime` may identify a caller such as Codex or Pi when reliably provided. It
-must not be required for event identity, retrieval, or correctness.
+`execution` describes the agent environment associated with the significant
+commit. It does not identify the Acta service. `harness` may identify a client
+such as Codex, Pi, or Herdr. `model` may contain a value such as
+`openai/gpt-5.6` when the recording client knows it reliably.
+
+The recording agent integration supplies execution values automatically. Acta
+must not infer them from parent processes. A manual recording may omit the
+complete object. Execution values do not participate in event identity,
+deduplication, or authorization.
+
+Execution strings must be non-empty after trimming and must not contain
+newlines, control characters, credentials, environment values, prompts, or
+session identifiers. They are advisory provenance supplied by the client, not
+trusted evidence of authorization or identity.
 
 Session identifiers are not part of `acta/v1`. The initial product does not
 persist durable session identity or per-session books. A later schema version
@@ -86,7 +99,7 @@ schema_version
 id
 type              milestone
 recorded_at
-producer
+execution         optional ExecutionContext
 repository        RepositoryReference
 git               GitReference
 note              optional SignificanceNote
@@ -95,7 +108,7 @@ note              optional SignificanceNote
 Example:
 
 ```json
-{"schema_version":"acta/v1","id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","type":"milestone","recorded_at":"2026-08-05T14:22:31.418Z","producer":{"name":"acta","version":"0.1.0","runtime":"codex"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","worktree_clean":true},"note":"Reusable protocol normalization across agent-enabled projects"}
+{"schema_version":"acta/v1","id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","type":"milestone","recorded_at":"2026-08-05T14:22:31.418Z","execution":{"harness":"pi","harness_version":"0.42.0","model":"openai/gpt-5.6"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","authored_at":"2026-08-05T14:18:03.000Z","committed_at":"2026-08-05T14:20:47.000Z","worktree_clean":true},"note":"Reusable protocol normalization across agent-enabled projects"}
 ```
 
 ## 5. RepositoryReference
@@ -139,6 +152,8 @@ the recorded path no longer exists.
 commit            full lowercase hexadecimal object ID
 branch            optional branch name
 subject           first line of the commit message
+authored_at       Git author timestamp normalized to UTC
+committed_at      Git committer timestamp normalized to UTC
 worktree_clean    boolean
 ```
 
@@ -147,6 +162,8 @@ Rules:
 - `commit` resolves from `HEAD` at recording time;
 - detached `HEAD` is valid and produces no `branch`;
 - `subject` must not contain a newline or control character;
+- `authored_at` and `committed_at` derive from the selected commit and use RFC
+  3339 UTC timestamps;
 - `worktree_clean` describes the complete worktree at recording time;
 - dirty state does not prevent recording because unrelated changes may remain;
 - file names, status details, staged content, and diffs are not persisted.
@@ -194,25 +211,40 @@ schema_version
 id
 type              correction
 recorded_at
-producer
+execution         optional ExecutionContext copied from target
+repository        RepositoryReference copied from target
+git               GitReference copied from target
+note              optional effective SignificanceNote
 target_id         EventID
 reason            SignificanceNote
-replacement_note  optional SignificanceNote
+```
+
+Example:
+
+```json
+{"schema_version":"acta/v1","id":"01K1Z9D5R9F5J7Z7P4J8X0QKTS","type":"correction","recorded_at":"2026-08-05T16:04:18.031Z","execution":{"harness":"pi","harness_version":"0.42.0","model":"openai/gpt-5.6"},"repository":{"name":"example","root":"/workspace/example","identity":"ssh://git@example.test/team/example.git","remote":"ssh://git@example.test/team/example.git"},"git":{"commit":"0123456789abcdef0123456789abcdef01234567","branch":"dev","subject":"feat: add reusable agent protocol","authored_at":"2026-08-05T14:18:03.000Z","committed_at":"2026-08-05T14:20:47.000Z","worktree_clean":true},"note":"Normalize the reusable protocol across Codex and Pi workspaces","target_id":"01K1Z8V7BMMN6W7Y6R8QJHA9SS","reason":"Clarify the supported agent harnesses"}
 ```
 
 Rules:
 
-- `target_id` must identify an earlier event in the canonical journal,
-  including an earlier monthly segment;
+- `target_id` must identify the current effective event in one milestone's
+  correction chain, including an event in an earlier monthly segment;
 - the target event remains unchanged;
 - `reason` explains why the correction exists;
-- `replacement_note`, when present, is the corrected significance note;
-- a correction cannot change repository identity or Git evidence;
+- the correction request may provide a replacement note;
+- the stored `note` is the replacement note when supplied and otherwise copies
+  the target's effective note;
+- the service copies `execution`, `repository`, and `git` from the target's
+  effective view;
+- a correction cannot change execution provenance, repository identity, or Git
+  evidence;
 - a mistaken repository or commit reference requires a new milestone event and
   a correction that marks the old event as erroneous.
 
-Readers produce an effective view by applying valid corrections in journal
-order. Raw export always preserves every original event.
+Every correction is independently searchable and understandable without
+following `target_id`. Readers produce an effective view by selecting the last
+valid event in each correction chain. Raw export preserves every original event
+and correction in journal order.
 
 ## 10. Physical storage
 
@@ -297,18 +329,28 @@ A query may contain:
 event_types       optional set
 repository        optional name or identity
 commit            optional full or unambiguous abbreviated hash
+harness           optional execution harness
+model             optional model identifier
 text              optional text query
 recorded_from     optional inclusive instant
 recorded_to       optional exclusive instant
+authored_from     optional inclusive Git author instant
+authored_to       optional exclusive Git author instant
+committed_from    optional inclusive Git committer instant
+committed_to      optional exclusive Git committer instant
 limit             required effective positive limit, maximum 1,000
 order             ascending or descending
 ```
 
-Text search initially matches normalized repository name, commit subject, and
-note. Correction reasons are searchable when corrections are included.
+Text search initially matches normalized repository name, commit subject, note,
+correction reason, execution harness, and model identifier. Harness and model
+filters use normalized exact matching. Execution filters do not match events
+that omit execution provenance.
 
-Time-bounded queries read only the monthly segments that can overlap the
-requested interval. Queries without a time bound may use the global derived
+Queries bounded by `recorded_at` read only the monthly segments that can overlap
+the requested interval. Author or committer time filters may use a derived
+index or scan canonical segments because storage is partitioned by
+`recorded_at`. Queries without a time bound may also use the global derived
 index or scan all canonical segments.
 
 Query output contains:
@@ -319,6 +361,11 @@ events            ordered matching effective events
 returned_count    number returned
 truncated         whether additional matches exist
 ```
+
+Default query output contains at most one complete effective event per
+milestone correction chain. Each returned event retains its stored `type`, ID,
+and correction fields. No repository, Git, note, or execution lookup is needed
+to understand a returned correction.
 
 Raw export is a separate operation and must not be the implicit behavior of a
 search or report command. A query stops before its encoded response exceeds 8
@@ -347,7 +394,10 @@ Verification checks:
 - segment placement derived from `recorded_at` in UTC;
 - unique event IDs across all segments;
 - unique milestone keys across all segments;
-- correction targets that identify earlier events;
+- valid Git author and committer timestamps;
+- correction targets that identify the preceding effective event;
+- correction execution, repository, Git, and note snapshots that match their
+  target chain rules;
 - deterministic event ordering.
 
 Verification is read-only. It reports the segment, line, and byte offset of a
@@ -368,12 +418,16 @@ initial integrity mechanisms.
 - Event IDs are unique.
 - Milestone keys are unique.
 - Git commit hashes are stored in full.
+- Git author and committer timestamps are stored in UTC.
 - Credentials are absent from repository references.
 - Corrections append history and never rewrite it.
+- Milestones and corrections are independently searchable without joining
+  canonical events.
 - Derived indexes are disposable.
 - Completed monthly segments are immutable.
 - A pending operation is recoverable state, not a published event.
-- Agent runtime and terminal session details are optional provenance, not
+- Execution harness, harness version, and model are optional provenance, not
   business identity.
+- Acta service identity and version are not repeated in canonical events.
 - No event contains a prompt, transcript, diff, file contents, or hidden
   reasoning.
