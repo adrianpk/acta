@@ -1,6 +1,7 @@
 # Collaboration Invariants
 
-This document defines non-negotiable execution invariants.
+This document defines non-negotiable scope, approval, safety, and truthfulness
+rules.
 
 ## Scope Integrity
 
@@ -10,11 +11,11 @@ This document defines non-negotiable execution invariants.
 
 ## Approval Gates
 
-- Questions and exploration are not implementation requests.
 - High-impact changes require explicit approval.
-- Formal slice execution requires an approved, committed plan and tracker.
-- Production deployment and external billing, credential, or access mutations
-  always require explicit approval.
+- Production deployment and external billing, credential, access, or account
+  mutations require explicit approval.
+- Start, stop, or restart long-running development services only when the user
+  requests it or authorized validation requires it.
 
 ## Safe Delivery
 
@@ -22,7 +23,7 @@ This document defines non-negotiable execution invariants.
 - Keep the repository in a working state between delivery units.
 - Do not use destructive Git operations without explicit approval.
 - Keep secrets and local agent configuration out of version control.
-- Preserve unrelated user changes.
+- Preserve unrelated user changes and report any overlap with requested work.
 
 ## Quality and Truthfulness
 
@@ -31,9 +32,3 @@ This document defines non-negotiable execution invariants.
 - Distinguish local implementation from deployed or externally verified state.
 - Record checks that could not run and the reason.
 - Keep repository, tracker, commit, and pull-request state consistent.
-
-## Documentation Separation
-
-- Product behavior belongs in `docs/` or approved specifications.
-- Working rules belong in `AGENTS.md` and `.agents/`.
-- Delivery state belongs in `ops/<namespace>/`.

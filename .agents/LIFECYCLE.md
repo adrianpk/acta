@@ -1,6 +1,7 @@
 # Delivery Lifecycle Contract
 
-This document defines lifecycle rules for work in this workspace.
+This document defines work-state transitions, completion, and blocked-state
+handling.
 
 ## Work Phases
 
@@ -11,13 +12,22 @@ This document defines lifecycle rules for work in this workspace.
 5. Versioning and push within the authorized workflow
 6. Report and handoff
 
-## Entry Gates
+Use `.agents/ROUTING.md` to determine whether a request authorizes planning or
+implementation. Use `.agents/VERSIONING.md` and applicable playbooks for
+versioning and publication procedures.
 
-- Alignment starts when task context is provided.
-- Persistent plans, trackers, specs, and tickets require an explicit request.
-- Implementation starts only after the task or plan is approved.
-- Production deployment, billing mutations, credential changes, and final
-  merges require explicit authorization.
+## State Alignment
+
+- For a status question, confusion, or state challenge, verify and report state
+  without changing files, branches, tickets, trackers, or pull requests.
+- Before starting or continuing a defined workflow, verify its required branch,
+  remote, operational artifacts, and review or merge state.
+- Continue in the same turn after routine verification succeeds.
+- Stop for a mismatch, destructive action, missing authority, material user
+  decision, or blocker.
+- After a reported merge, verify it and close the delivered work on `dev`.
+  Follow `.agents/SLICES.md` when another slice remains in the same delivery
+  set.
 
 ## Exit Gates
 
@@ -29,6 +39,9 @@ A work unit is complete only when:
 - the working tree and branch state are explicit;
 - remaining risks and external prerequisites are recorded.
 
+After completing the requested scope, report the outcome and stop unless the
+same authorized workflow defines another unit.
+
 ## Blocked State
 
 When blocked:
@@ -38,11 +51,5 @@ When blocked:
 - record the blocker in the active tracker or ticket when one exists;
 - stop before speculative, destructive, or out-of-scope changes.
 
-## Handoff Artifacts
-
-- Durable plans live in `ops/<namespace>/plan/`.
-- Execution state lives in `ops/<namespace>/tracker/`.
-- Slice reports live in `ops/<namespace>/report/slices/`.
-- End-to-end cycle reports live in `ops/<namespace>/report/`.
-- Temporary command output belongs under an ignored temporary directory, not in
-  versioned operational artifacts.
+Store lifecycle artifacts in the locations defined by
+`.agents/DOCUMENTING.md` and `.agents/REPORTING.md`.

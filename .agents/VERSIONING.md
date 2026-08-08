@@ -2,6 +2,9 @@
 
 This document defines commit, branch, remote, and merge rules.
 
+Before changing version-control state, verify the current branch, working tree,
+canonical remote, relevant upstream refs, and active operational artifacts.
+
 ## Commit Format
 
 Use Conventional Commits:
@@ -43,6 +46,26 @@ Common types are `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`,
 - Pull requests targeting `main` are not allowed during normal delivery.
 - The formal `dev -> main` alignment also requires an explicit request.
 
+## Changelog Policy
+
+- Treat `CHANGELOG.md` as reader-facing release notes, not as a commit log.
+- Describe what users can now do and meaningful user-visible problems that
+  were fixed.
+- Use plain English and group entries by user task or outcome.
+- Omit implementation details, package names, tests, internal refactors,
+  operational records, development topology, and minor maintenance.
+- Before a release, compare `dev` with the latest tag and ensure every
+  release-worthy user-facing change is represented.
+- Update and validate the User Guide before finalizing the changelog.
+- Propose the next SemVer with a rationale and wait for explicit maintainer
+  approval before writing it into the changelog.
+- When the next `main` alignment will be tagged immediately, replace
+  `Unreleased` on `dev` with `## [x.y.z] - YYYY-MM-DD`.
+- Commit and push the final changelog to `dev` before opening the
+  `dev -> main` pull request.
+- Do not modify release notes directly on `main`; tag the exact integrated
+  `main` commit.
+
 ## Alignment Policy
 
 - Keep regular delivery linear through `dev`.
@@ -57,9 +80,10 @@ Common types are `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`,
 
 - Prefer small, reviewable commits.
 - Keep commit scope aligned with one active task or slice concern.
-- Avoid force pushes and published-history rewrites unless explicitly approved.
+- Treat force pushes and published-history rewrites as destructive Git
+  operations governed by `.agents/INVARIANTS.md`.
 - Planning and tracker maintenance can be committed directly to `dev` when it
   does not include runtime implementation.
-- Preserve unrelated user changes.
+- Follow `.agents/LANGUAGE.md` for commit and pull-request language.
 - Keep the working tree state explicit before declaring a delivery cycle
   complete.

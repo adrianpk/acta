@@ -3,6 +3,16 @@
 This repository uses Diataxis for user-facing documentation under `docs/`:
 https://diataxis.fr
 
+## Ownership Boundaries
+
+- Keep product and runtime documentation under `docs/` or the approved
+  `ops/<namespace>/spec/` location.
+- Keep agent operating rules in `AGENTS.md` and `.agents/`.
+- Keep delivery state and operational artifacts under `ops/<namespace>/`.
+- Resolve the active namespace from explicit user input, then `OPS_USER`, then
+  `default`.
+- Follow `.agents/LANGUAGE.md` for artifact language and locale rules.
+
 ## Categories
 
 - `docs/tutorials/` for learning paths
@@ -40,10 +50,11 @@ structure inside the applicable quadrant.
 - `ops/<namespace>/ticket/` stores bounded repository work.
 - `ops/<namespace>/report/` stores durable cycle outputs, generated maps, and reports.
 - Do not mix operational delivery records into `docs/` unless they become durable product documentation.
+- Keep temporary command output under an ignored temporary directory, not in
+  versioned operational artifacts.
 
 ## General rules
 
-- Keep all repository docs in English.
 - Each document should have one primary intent.
 - Split documents when intent changes.
 - Preserve technical meaning when reorganizing docs.

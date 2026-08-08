@@ -4,9 +4,10 @@ Use formal slices for non-trivial coordinated work. Slices form a defined,
 maintainer-visible delivery loop. Small independent maintenance can use a
 ticket or direct `dev` delivery.
 
-Use `.agents/playbooks/slice-delivery.md` for the execution procedure. Use
-`.agents/playbooks/layered-slicing.md` when substantial package work benefits
-from review by layer.
+This document owns slice definitions, strategy, planning gates, and
+traceability. Use `.agents/playbooks/slice-delivery.md` for the execution
+procedure. Use `.agents/playbooks/layered-slicing.md` when substantial package
+work benefits from review by layer.
 
 ## Definitions and Naming
 
@@ -87,9 +88,6 @@ Each slice must:
 
 ## Scope Control
 
-- A conversational suggestion is not an executable slice.
 - Do not derive slice numbers from PR numbers or another delivery set.
-- Capture adjacent work as a ticket or follow-up entry instead of expanding the
-  active slice.
 - Do not add a tuning or integration slice automatically. Record the need and
   update the approved plan first.

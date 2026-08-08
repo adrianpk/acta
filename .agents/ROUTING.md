@@ -1,6 +1,6 @@
 # Work Request Routing
 
-This document defines how incoming requests are classified.
+This document defines request classification and execution authorization.
 
 ## Execution Modes
 
@@ -10,34 +10,43 @@ This document defines how incoming requests are classified.
 - investigation
 - maintenance or meta-work
 
-## Rules
+## Classification
 
 - Exploration covers questions, possibilities, design discussion, and tradeoff
   analysis. It does not create persistent artifacts or delivery state.
-- Planning occurs only when requested. A persistent plan, tracker, ticket, or
-  specification requires explicit authorization.
+- Planning occurs only when requested. Persistent plans, trackers, tickets, and
+  specifications require explicit authorization.
 - Implementation starts only with explicit instruction and stays within the
-  agreed scope.
-- A request to start, continue, resume, or proceed authorizes execution when the
-  next workflow unit is already defined.
-- Do not turn exploration, a plan, a prior merge, or a status acknowledgment
-  into open-ended autonomous work.
-- Ambiguous requests require clarification before code or state changes when a
-  reasonable assumption could materially change the result.
-- During exploration, work inside the direction the user is evaluating. Map how
-  the idea could fit and name concrete tradeoffs. Push back only when there is a
-  specific technical, safety, scope, or product risk.
-- Use `.agents/playbooks/work-modes.md` whenever work may move from exploration
-  into delivery.
+  approved scope.
+- Investigation verifies and reports state without changing it unless the user
+  also authorizes a fix.
+- Maintenance or meta-work changes repository workflow, tooling, documentation,
+  or operating rules within the explicitly requested scope.
+- Use tickets for bounded independent work. Use specifications, plans,
+  trackers, slices, and reports for non-trivial coordinated work.
 
-## Delivery Mode
+## Continuation
 
-- An approved slice includes implementation, validation, versioning, push, and
-  its pull-request handoff.
-- A change outside an approved slice uses direct `dev` delivery unless the user
-  explicitly requests a branch and pull request.
-- Do not infer branch or pull-request delivery from task size or risk.
+- A clear request to start, continue, resume, or proceed authorizes execution
+  when the next workflow unit is already defined.
+- A merge confirmation or status acknowledgment continues only the active
+  approved delivery set. It does not authorize a new delivery set, plan,
+  branch, or unrelated work.
+- Do not turn exploration, planning, prior work, or status reporting into
+  open-ended autonomous execution.
 
-## Non-goal
+## Ambiguity
 
-This document does not define product or runtime behavior.
+- Ask for clarification only when a reasonable assumption could materially
+  change the result, scope, or external effect.
+- During exploration, work inside the direction under evaluation. Name concrete
+  tradeoffs and push back only for a specific technical, safety, scope, or
+  product risk.
+
+After classification, use `.agents/LIFECYCLE.md` for state transitions and the
+applicable concern documents for execution.
+
+## Non-Goal
+
+This document does not define product behavior, Git policy, or delivery
+procedures.
