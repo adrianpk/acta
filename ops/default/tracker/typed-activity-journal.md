@@ -7,9 +7,9 @@ Slice strategy: layered
 Plan: `ops/default/plan/typed-activity-journal.md`
 Specification: `ops/default/spec/stable/typed-activity-journal.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
-Progress: 2 of 4 slices completed
-Active slice: Slice 3: Activity Retrieval and Time Reporting
-Active slice status: reviewing
+Progress: 3 of 4 slices completed
+Active slice: Slice 4: Deterministic Journal Migration
+Active slice status: in_progress
 
 ## Execution gate
 
@@ -23,8 +23,8 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 | --- | --- | --- | --- | --- |
 | Slice 1: Canonical Typed Journal Core | delivered | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
 | Slice 2: Peer Activity Recording | delivered | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
-| Slice 3: Activity Retrieval and Time Reporting | reviewing | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
-| Slice 4: Deterministic Journal Migration | pending | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
+| Slice 3: Activity Retrieval and Time Reporting | delivered | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
+| Slice 4: Deterministic Journal Migration | in_progress | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
 
 ## Slice 1 tasks
 
@@ -125,3 +125,5 @@ None recorded.
   unchanged.
 - 2026-09-03: Opened pull request `#9` from
   `feat/typed-activity-retrieval` to `dev`.
+- 2026-09-03: Verified pull request `#9` merged into `dev`, delivered Slice 3,
+  and activated Slice 4.
