@@ -1,6 +1,6 @@
 # Slice 4: Deterministic Journal Migration
 
-Status: reviewing
+Status: delivered
 Delivery set: Typed Activity Journal
 Plan: `ops/default/plan/typed-activity-journal.md`
 Tracker: `ops/default/tracker/typed-activity-journal.md`

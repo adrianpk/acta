@@ -1,15 +1,15 @@
 # Typed Activity Journal Tracker
 
-Status: approved
+Status: completed
 Approval: approved by the maintainer on 2026-09-03
 Delivery set: Typed Activity Journal
 Slice strategy: layered
 Plan: `ops/default/plan/typed-activity-journal.md`
 Specification: `ops/default/spec/stable/typed-activity-journal.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
-Progress: 3 of 4 slices completed
-Active slice: Slice 4: Deterministic Journal Migration
-Active slice status: reviewing
+Progress: 4 of 4 slices completed
+Active slice: None
+Active slice status: none
 
 ## Execution gate
 
@@ -24,7 +24,7 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 | Slice 1: Canonical Typed Journal Core | delivered | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
 | Slice 2: Peer Activity Recording | delivered | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
 | Slice 3: Activity Retrieval and Time Reporting | delivered | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
-| Slice 4: Deterministic Journal Migration | reviewing | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
+| Slice 4: Deterministic Journal Migration | delivered | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
 
 ## Slice 1 tasks
 
@@ -140,3 +140,5 @@ None recorded.
   migration still pending.
 - 2026-09-03: Opened pull request `#10` from
   `feat/typed-activity-migration` to `dev`.
+- 2026-09-03: Verified pull request `#10` merged into `dev`, delivered Slice 4,
+  and completed the four-slice delivery set.
