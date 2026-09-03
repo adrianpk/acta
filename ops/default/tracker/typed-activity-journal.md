@@ -2,6 +2,8 @@
 
 Status: completed
 Approval: approved by the maintainer on 2026-09-03
+Cutover validation: exact `dev` commit, complete local repository suite, and
+deterministic two-run rehearsal; staging CI is not part of the Acta workflow
 Delivery set: Typed Activity Journal
 Slice strategy: layered
 Plan: `ops/default/plan/typed-activity-journal.md`
@@ -142,3 +144,5 @@ None recorded.
   `feat/typed-activity-migration` to `dev`.
 - 2026-09-03: Verified pull request `#10` merged into `dev`, delivered Slice 4,
   and completed the four-slice delivery set.
+- 2026-09-03: The maintainer corrected the inherited cutover gate: Acta uses
+  exact-commit local validation and deterministic rehearsal, not staging CI.

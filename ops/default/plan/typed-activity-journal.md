@@ -2,6 +2,9 @@
 
 Status: approved
 Approval: approved by the maintainer on 2026-09-03
+Cutover validation: corrected by the maintainer on 2026-09-03 to use the exact
+`dev` commit, the complete local repository suite, and deterministic two-run
+rehearsal; staging CI is not part of the Acta workflow
 Delivery set: Typed Activity Journal
 Slice strategy: layered
 Tracker: `ops/default/tracker/typed-activity-journal.md`
@@ -209,8 +212,9 @@ Prerequisites: Slice 3 delivered and closed on `dev`.
 - Do not install a slice build or expose it to the legacy live journal.
 - After each maintainer-controlled merge, return to `dev`, close the slice
   report and tracker state, and activate the next recorded slice.
-- After Slice 4, promote the exact integrated candidate to `staging` and use
-  its full CI result as the immutable-candidate gate.
+- After Slice 4, validate the exact integrated `dev` candidate with the
+  complete local repository suite and two byte-identical migrations from one
+  verified legacy journal copy.
 - Do not create an additional integration or tuning slice without an approved
   plan and tracker update.
 
@@ -219,9 +223,10 @@ Prerequisites: Slice 3 delivered and closed on `dev`.
 Installation and live migration may start only after:
 
 1. all four slices are delivered on `dev`;
-2. the exact integrated candidate passes the repository and migration
-   rehearsal gates;
-3. the same candidate is green on `staging` CI;
+2. the exact integrated `dev` candidate passes the complete local repository
+   gate;
+3. two independent rehearsal migrations from the same verified source copy
+   produce byte-identical canonical journals and manifests;
 4. the installed binary and live journal have recoverable snapshots;
 5. the writer freeze is confirmed before the final migration reads the source.
 
