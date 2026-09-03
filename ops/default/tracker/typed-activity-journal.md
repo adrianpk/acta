@@ -96,3 +96,5 @@ None recorded.
   `dev`.
 - 2026-09-03: Completed Slice 1 implementation and validation; moved it to
   review with the live legacy runtime and journal unchanged.
+- 2026-09-03: Opened pull request `#7` from `feat/typed-activity-core` to
+  `dev`.
