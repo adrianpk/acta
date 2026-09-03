@@ -2,18 +2,26 @@
 
 Acta uses one per-user local service as the sole canonical writer. Agents and
 CLI processes send bounded operations through an owner-only Unix socket. This
-keeps concurrent writes serialized without requiring agents to coordinate file
+serializes concurrent writes without requiring clients to coordinate file
 access.
 
-Events are complete JSON objects stored one per line in monthly UTC segments.
-Appending to an existing segment is cheaper and easier to inspect than creating
-one file for every event. Monthly rotation keeps individual files bounded and
-avoids one permanent journal file that grows for the lifetime of the tool.
+Every event is a complete canonical JSON object stored on one line in a monthly
+UTC segment. The common envelope carries identity, type, occurrence and
+recording times, and summary. Optional scope, references, and provenance are
+independent from strict properties selected by `commit`, `pull_request`,
+`worklog`, or `note`.
 
-Corrections append a new self-contained event that supersedes the current
-effective event. Published lines do not change. Search and reports operate on
-the effective event in each correction chain.
+The service assigns the event ID and recording time. Occurrence time describes
+when the activity happened and can be earlier. Segment placement follows the
+recording time, while reports group by occurrence time in the requested local
+timezone.
 
-Acta keeps all journal and query work local. It does not send events to an
-external search service. Git remains the source of code, diffs, specifications,
-plans, and detailed history; Acta stores the route back to that evidence.
+Corrections append a new self-contained event of the same type that supersedes
+the current effective event. Published lines do not change. Search and reports
+operate on effective events and return compact projections. Show returns a
+complete effective or explicitly requested raw event.
+
+Acta keeps journal and query work local. It does not contact a forge, infer
+duration, or require a Git artifact. Git and other referenced systems remain
+the detailed sources for their own artifacts; Acta stores typed activity and
+optional routes back to those sources.

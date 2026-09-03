@@ -1,8 +1,8 @@
 # Acta Documentation
 
 Start with the [Acta user guide](tutorials/user-guide/index.md) to install the
-local service, connect a workspace agent, and retrieve the first recorded
-milestone.
+local service, connect a workspace agent, and record and retrieve typed
+activity.
 
 Use the documentation by intent after the guided path:
 
@@ -10,5 +10,5 @@ Use the documentation by intent after the guided path:
 - [How-to guides](how-to/index.md) solve focused operating tasks.
 - [Reference](reference/index.md) defines commands, stored data, limits, and
   exact behavior.
-- [Explanation](explanation/index.md) describes the evidence model and how to
-  interpret recorded activity.
+- [Explanation](explanation/index.md) describes the activity model and how to
+  interpret recorded facts.

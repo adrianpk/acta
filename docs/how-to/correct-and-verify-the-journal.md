@@ -1,30 +1,50 @@
 # Correct and Verify the Journal
 
-Append a correction when a milestone note is inaccurate. Verify the journal
+Append a correction when an activity record is inaccurate. Verify the journal
 when storage integrity is in doubt or after restoring local data.
 
 ## Find the effective event ID
 
+Search for the activity and copy its event ID:
+
 ```sh
-acta show --commit <commit> --json
+acta search --query "alert routing"
 ```
 
-Read the event `id` from the result.
+Inspect the complete effective event before changing it:
+
+```sh
+acta show --id <event-id> --json
+```
 
 ## Append a correction
 
-Replace the note:
+Replace a summary:
 
 ```sh
 acta correct \
   --target <event-id> \
   --reason "Clarify the affected behavior" \
-  --note "The corrected significance note"
+  --summary "Configured alert routing for the production contact point"
 ```
 
-Omit `--note` to retain the current note. Pass `--note ""` to clear it. A
-correction must target the current effective event. Acta appends a new event
-and does not rewrite the earlier line.
+Correct a worklog occurrence time and duration:
+
+```sh
+acta correct \
+  --target <event-id> \
+  --reason "Correct the timesheet facts" \
+  --at 2026-09-03T08:00:00Z \
+  --duration 180
+```
+
+Omit any replacement option whose current value should remain unchanged. The
+target must be the current effective event. Acta appends a complete replacement
+of the same type and does not rewrite the earlier line. `--duration` is valid
+only for worklogs.
+
+Use `acta show --id <old-event-id>` to resolve an earlier chain member to the
+new effective event. Add `--raw` to retrieve the exact earlier event.
 
 ## Verify journal integrity
 
@@ -40,6 +60,6 @@ Verify every canonical segment:
 acta verify --full
 ```
 
-Use `--json` when an agent needs structured results. On corruption, Acta
-reports the segment, line, byte offset, and reason. Verification does not
-perform general repair.
+Use `--json` when a client needs structured results. On corruption, Acta
+reports the segment, line, byte offset, and reason. Verification is read-only
+and does not perform general repair.

@@ -1,44 +1,44 @@
-# Evidence and Progress Accounting
+# Activity Evidence and Progress Accounting
 
-Agent-assisted development changes who retains implementation context. A human
-can direct and review many concurrent agents without handling every low-level
-change. Across many repositories, completed work can accumulate faster than the
-human can remember it or a later agent can rediscover it.
-
-Acta records a compact landmark after a commit. The landmark answers where and
-when meaningful work was recorded. Its commit identifies the immutable Git
-evidence that a later agent can inspect to recover how the result was produced.
+Professional work produces several kinds of evidence. A commit can anchor an
+implementation in Git. A pull-request action can identify integration or
+review. Configuration, investigation, coordination, and operational work may
+produce neither artifact. Acta records each as a peer activity type instead of
+using commits as the parent model.
 
 ## Two consumers
 
-For an agent, Acta is a retrieval index. A natural-language request can become
-a bounded search. The result provides the repository and commit needed to load
-the original diff, specification, plan, or implementation from Git.
+For an agent, Acta is a retrieval index. A bounded search can locate a relevant
+event and its optional references. A commit can route the agent to an immutable
+Git object; a pull request or URL can route it to another source system; a
+worklog or note can preserve a meaningful fact without inventing an artifact.
 
-For a human, Acta is an evidence-backed account of progress across
-repositories. Reports show which recorded milestones landed, where, and when.
-They can help review a week, locate concentrated activity, or see that a quiet
-project became active again.
+For a human, Acta is a local account of recorded activity across scopes.
+Reports can review a week, group work by project or system, and total explicit
+worklog minutes for timesheet preparation.
 
 ## Evidence levels
 
-Acta supports four distinct levels of interpretation:
+Acta supports distinct levels of interpretation:
 
-1. Stored facts include the recording time, repository, commit, subject, note,
-   Git timestamps, worktree state, and supplied execution provenance.
-2. Transparent derivations include milestone counts, active days, repository
-   distributions, and intervals between recorded events.
-3. Approximate inferences require context outside Acta. For example, an agent
-   can inspect several commits and infer that they form one delivery cycle.
-4. Unavailable facts include unrecorded work, hours, effort, difficulty,
-   productivity, hidden reasoning, and the start time of an unversioned idea.
+1. Stored facts include event type, occurrence and recording times, summary,
+   optional scope, type-specific properties, references, and provenance.
+2. Transparent derivations include event counts, occurrence-date groups, scope
+   distributions, and the sum of explicit worklog minutes.
+3. Contextual inferences require evidence outside Acta. For example, an agent
+   can inspect a referenced commit or pull request to explain a delivery.
+4. Unavailable facts include unrecorded activity, inferred effort, difficulty,
+   causality, productivity, and hidden reasoning.
 
-An idea-to-integration cycle is observable only when its meaningful stages were
-committed and recorded. Event order alone does not prove causal dependence.
+An event sequence does not prove causal dependence. A worklog duration states
+what its source supplied; it is not verified or derived by Acta.
 
 ## Capture policy affects interpretation
 
-A selective workspace records a sparse set of major landmarks. A broad
-workspace records most completed intentional commits. Both are valid, but
-their event counts do not mean the same thing. Comparisons should state the
-capture policy and use counts as activity indicators, not performance scores.
+A selective workspace records a sparse set of important commits. A broad
+workspace records most completed intentional commits. User-directed worklogs
+and notes cover different facts and can have their own capture policy. Event
+counts across unlike policies are not comparable performance measures.
+
+Acta makes missing evidence visible but cannot reconstruct activity that no one
+recorded.

@@ -1,7 +1,7 @@
 # Command Line Reference
 
 Acta provides `serve`, `record`, `search`, `show`, `report`, `correct`, and
-`verify`. All client commands require the local service socket to be available.
+`verify`. Client commands require the local service socket.
 
 ## `acta serve`
 
@@ -15,23 +15,49 @@ activation is present. Otherwise, it creates the Unix socket directly.
 ## `acta record`
 
 ```text
-acta record [--harness <name>] [--harness-version <version>] [--model <id>] [note]
+acta record commit [common flags] [summary]
+acta record pull-request --forge <url> --repository <owner/name> --number <n> --action <action> [common flags] <summary>
+acta record worklog --duration <minutes> [common flags] <summary>
+acta record note [common flags] <summary>
 ```
 
-Record the current worktree `HEAD`. Run the command inside a Git worktree.
-Flags must appear before the optional positional note.
+`record` requires an explicit activity type. Flags precede the positional
+summary.
+
+### Common record options
 
 | Option | Meaning |
 | --- | --- |
-| `--harness <name>` | Record the agent harness name. |
-| `--harness-version <version>` | Record the exact harness version. Requires `--harness`. |
-| `--model <id>` | Record a provider-qualified model identifier. Requires `--harness`. |
-| `note` | Record optional significance text of at most 500 Unicode code points. |
+| `--at <time>` | Set occurrence time from RFC3339 input. A commit derives this time and rejects the option. |
+| `--scope-type <type>` | Set `repository`, `project`, `system`, `client`, or `other` scope. |
+| `--scope-name <name>` | Set the scope display name. |
+| `--scope-identity <identity>` | Set the stable scope identity. |
+| `--reference-url <url>` | Add a URL reference. Repeatable. |
+| `--reference-commit <scope>@<object-id>` | Add a Git commit reference. Repeatable. |
+| `--reference-pull-request <url>` | Add a pull-request reference. Repeatable. |
+| `--source <source>` | Set `human`, `agent`, or `integration` provenance. |
+| `--harness <name>` | Set the agent harness. Requires agent provenance. |
+| `--harness-version <version>` | Set the harness version. Requires `--harness`. |
+| `--model <id>` | Set the execution model. Requires `--harness`. |
 
-Acta derives the repository root, normalized repository identity and remote,
-branch, full commit ID, subject, author and committer times, and current
-worktree cleanliness. Recording the same repository identity and commit again
-is idempotent.
+Scope options are all-or-none. Commit and pull-request events derive their
+repository scope and reject a custom scope. When `--at` is absent for a
+non-Git event, occurrence time equals the service recording time.
+
+### Type-specific behavior
+
+- `commit` reads the current worktree `HEAD`, commit subject and timestamps,
+  and a credential-free repository identity. Its summary defaults to the
+  commit subject. Repository identity plus object ID is idempotent.
+- `pull-request` requires `--forge`, `--repository`, `--number`, and an
+  `--action` of `opened`, `reviewed`, `merged`, or `closed`. `--url` adds the
+  optional pull-request URL. Forge, repository, number, and action are
+  idempotent. Acta does not contact the forge.
+- `worklog` requires `--duration` from 1 through 1,440 minutes.
+- `note` has no type-specific properties.
+
+Separately submitted worklogs and notes remain separate events even when their
+content matches.
 
 ## `acta search`
 
@@ -41,71 +67,86 @@ acta search [flags]
 
 | Option | Meaning |
 | --- | --- |
-| `--query <text>` | Match normalized text in repository name, subject, note, correction reason, harness, or model. |
-| `--repository <value>` | Match an exact repository name or normalized identity, without case sensitivity. |
-| `--commit <prefix>` | Match a lowercase hexadecimal full or abbreviated commit. |
-| `--harness <name>` | Match a normalized harness name. |
-| `--model <id>` | Match a normalized model identifier. |
-| `--type <list>` | Match comma-separated `milestone` or `correction` event types. |
+| `--query <text>` | Match normalized text across summaries, scopes, typed display fields, references, correction reasons, and provenance identifiers. |
+| `--type <list>` | Match comma-separated `commit`, `pull_request`, `worklog`, or `note` types. |
+| `--scope <value>` | Match an exact scope name or identity without case sensitivity. |
+| `--commit <prefix>` | Match a lowercase hexadecimal full or abbreviated commit object ID. |
+| `--pull-request <value>` | Match normalized pull-request identity text. |
+| `--occurred-from <time>` | Include events occurring at or after an RFC3339 time. |
+| `--occurred-to <time>` | Exclude events occurring at or after an RFC3339 time. |
 | `--recorded-from <time>` | Include events recorded at or after an RFC3339 time. |
 | `--recorded-to <time>` | Exclude events recorded at or after an RFC3339 time. |
-| `--authored-from <time>` | Include events authored at or after an RFC3339 time. |
-| `--authored-to <time>` | Exclude events authored at or after an RFC3339 time. |
-| `--committed-from <time>` | Include events committed at or after an RFC3339 time. |
-| `--committed-to <time>` | Exclude events committed at or after an RFC3339 time. |
-| `--limit <count>` | Return 1 to 1000 events. The default is 20. |
+| `--duration-min <minutes>` | Match worklogs with at least this explicit duration. |
+| `--duration-max <minutes>` | Match worklogs with at most this explicit duration. |
+| `--source <source>` | Match `human`, `agent`, or `integration` provenance. |
+| `--harness <name>` | Match a normalized harness name. |
+| `--model <id>` | Match a normalized model identifier. |
+| `--limit <count>` | Return 1 through 1,000 events. The default is 20. |
 | `--order <value>` | Use `ascending` or `descending`. The default is `descending`. |
-| `--json` | Write the structured result. |
+| `--json` | Write the structured compact result. |
 
-Search returns only the effective event in each correction chain. Results can
-also be truncated to keep the encoded response within 8 MiB. JSON clients must
-check `returned_count` and `truncated`.
+Ranges are inclusive at `from` and exclusive at `to`. Search returns only the
+effective event in each correction chain. Its projection contains event ID,
+type, occurrence and recording times, summary, optional scope name, optional
+worklog duration, and optional type-specific identifier. It excludes complete
+properties, references, provenance, and correction data.
+
+Results may be truncated by the count limit or the 8 MiB response bound. JSON
+clients must check `returned_count` and `truncated`.
 
 ## `acta show`
 
 ```text
-acta show --commit <commit> [--repository <repository>] [--json]
+acta show --id <event-id> [--raw] [--json]
 ```
 
-Return one effective event. `--commit` accepts a full commit or an unambiguous
-lowercase hexadecimal prefix. Use `--repository` when a prefix matches events
-from several repositories.
+Return one complete canonical event. By default, an ID anywhere in a
+correction chain resolves to the current effective event. `--raw` returns the
+exact stored event with that ID. `--json` exposes all canonical fields.
 
 ## `acta report`
 
 ```text
-acta report --from <date> --to <date> [--timezone <name>] [--limit <count>] [--json]
+acta report --from <date> --to <date> [--timezone <name>] [--type <types>] [--limit <count>] [--json]
 ```
-
-Group effective events by local recording date and repository.
 
 | Option | Meaning |
 | --- | --- |
-| `--from <date>` | Inclusive date in `YYYY-MM-DD` form. |
-| `--to <date>` | Exclusive date in `YYYY-MM-DD` form. |
+| `--from <date>` | Inclusive occurrence date in `YYYY-MM-DD` form. |
+| `--to <date>` | Exclusive occurrence date in `YYYY-MM-DD` form. |
 | `--timezone <name>` | IANA timezone name. The process local timezone is the default. |
-| `--limit <count>` | Return 1 to 1000 events. The default is 1000. |
+| `--type <list>` | Match comma-separated activity types. |
+| `--limit <count>` | Return 1 through 1,000 events. The default is 1,000. |
 | `--json` | Write the structured grouped result. |
+
+Reports group compact effective events by local occurrence date and scope.
+Unscoped events appear under `Unscoped`. Every day, scope, and report has an
+event count and explicit worklog-minute total. No other event type contributes
+duration.
 
 JSON clients must check `returned_count` and `truncated`.
 
 ## `acta correct`
 
 ```text
-acta correct --target <event-id> --reason <reason> [--note <note>] [--json]
+acta correct --target <event-id> --reason <reason> [--at <time>] [--summary <summary>] [--duration <minutes>] [--json]
 ```
 
-Append a correction to the current effective event.
+Append a complete type-preserving replacement for one current effective event.
 
 | Option | Meaning |
 | --- | --- |
 | `--target <event-id>` | Select the current effective event by ULID. |
 | `--reason <reason>` | Explain the correction in at most 500 Unicode code points. |
-| `--note <note>` | Replace the significance note. Omit it to preserve the current note; pass an empty value to clear the note. |
-| `--json` | Write the structured result. |
+| `--at <time>` | Replace occurrence time from RFC3339 input. |
+| `--summary <summary>` | Replace the summary. Omit it to retain the current value. |
+| `--duration <minutes>` | Replace explicit duration on a worklog. |
+| `--json` | Write the complete appended replacement. |
 
-The target cannot be missing, stale, or from a different correction-chain
-position.
+The target cannot be missing or stale. An omitted replacement field is copied
+from the target. An empty summary is invalid because every event requires a
+summary. Duration is valid only for a worklog and must remain between 1 and
+1,440 minutes. The original event remains unchanged.
 
 ## `acta verify`
 
