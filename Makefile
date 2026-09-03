@@ -4,7 +4,7 @@ GO_BUILD_CACHE := $(CURDIR)/$(DEV_ROOT)/go-build-cache
 GOLANGCI_LINT_CACHE := $(CURDIR)/$(DEV_ROOT)/golangci-lint-cache
 COVERAGE_OUT ?= /tmp/acta-coverage.out
 
-.PHONY: fmt test test-coverage lint lint-strict check verify check-go-style check-package-readmes clean-dev
+.PHONY: fmt test test-coverage lint lint-strict check verify docs-check check-go-style check-package-readmes clean-dev
 
 fmt:
 	@$(GO) fmt ./...
@@ -35,6 +35,10 @@ check-package-readmes:
 check: fmt check-go-style test
 
 verify: lint-strict test
+
+docs-check:
+	@files="$$(git ls-files '*.md')"; test -n "$$files"; for document in $$files; do test -s "$$document"; done
+	@if git grep -nE '[[:blank:]]+$$' -- '*.md'; then exit 1; fi
 
 clean-dev:
 	@rm -rf $(DEV_ROOT)

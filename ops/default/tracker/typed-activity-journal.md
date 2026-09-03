@@ -9,7 +9,7 @@ Specification: `ops/default/spec/stable/typed-activity-journal.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
 Progress: 0 of 4 slices completed
 Active slice: Slice 1: Canonical Typed Journal Core
-Active slice status: ready
+Active slice status: in_progress
 
 ## Execution gate
 
@@ -21,7 +21,7 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 
 | Slice | Status | Branch | Expected PR | Report |
 | --- | --- | --- | --- | --- |
-| Slice 1: Canonical Typed Journal Core | ready | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
+| Slice 1: Canonical Typed Journal Core | in_progress | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
 | Slice 2: Peer Activity Recording | pending | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
 | Slice 3: Activity Retrieval and Time Reporting | pending | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
 | Slice 4: Deterministic Journal Migration | pending | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
@@ -86,3 +86,5 @@ None recorded.
   specification through installation and live journal migration.
 - 2026-09-03: Created the approved four-slice layered delivery map and
   activated Slice 1 pending the planning commit and origin alignment.
+- 2026-09-03: Started Slice 1 on `feat/typed-activity-core` from aligned
+  `dev`.
