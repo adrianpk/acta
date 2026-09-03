@@ -96,6 +96,11 @@ func TestActivityValidateTypeProperties(t *testing.T) {
 			change:   func(activity *Activity) { activity.Properties.Action = "updated" },
 		},
 		{
+			name:     "pull request scope is derived from properties",
+			activity: validPullRequestActivity(),
+			change:   func(activity *Activity) { activity.Scope.Identity = "https://forge.example.test/team/other" },
+		},
+		{
 			name:     "worklog requires duration",
 			activity: validWorklogActivity(),
 			change:   func(activity *Activity) { activity.Properties.DurationMinutes = 0 },

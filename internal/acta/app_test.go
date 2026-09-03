@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -139,15 +140,19 @@ func TestParseRecordOptions(t *testing.T) {
 		{
 			name:      "summary only",
 			arguments: []string{"commit", "Reusable behavior"},
-			want:      recordOptions{summary: "Reusable behavior"},
+			want:      recordOptions{activityType: ActivityTypeCommit, summary: "Reusable behavior"},
 		},
 		{
 			name:      "execution",
 			arguments: []string{"commit", "--harness", "pi", "--harness-version", "2.0", "--model", "provider/model"},
 			want: recordOptions{
-				harness:        "pi",
-				harnessVersion: "2.0",
-				model:          "provider/model",
+				activityType: ActivityTypeCommit,
+				provenance: &ActivityProvenance{
+					Type:           ProvenanceTypeAgent,
+					Harness:        "pi",
+					HarnessVersion: "2.0",
+					Model:          "provider/model",
+				},
 			},
 		},
 		{
@@ -171,7 +176,7 @@ func TestParseRecordOptions(t *testing.T) {
 				t.Fatal("expected parse error")
 			}
 
-			if !test.wantErr && (err != nil || got != test.want) {
+			if !test.wantErr && (err != nil || !reflect.DeepEqual(got, test.want)) {
 				t.Fatalf("parseRecordOptions() = %#v, %v", got, err)
 			}
 		})

@@ -267,6 +267,11 @@ func (activity Activity) validatePullRequest() error {
 		return err
 	}
 
+	wantIdentity := properties.Forge + "/" + properties.Repository
+	if activity.Scope.Name != properties.Repository || activity.Scope.Identity != wantIdentity {
+		return fmt.Errorf("validate pull request: repository scope does not match properties")
+	}
+
 	if properties.hasCommitFields() || properties.DurationMinutes != 0 {
 		return fmt.Errorf("validate pull request: properties contain fields for another activity type")
 	}
