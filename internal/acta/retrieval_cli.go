@@ -26,13 +26,11 @@ type correctOptions struct {
 }
 
 type searchFlagValues struct {
-	eventTypes    string
-	recordedFrom  string
-	recordedTo    string
-	authoredFrom  string
-	authoredTo    string
-	committedFrom string
-	committedTo   string
+	eventTypes   string
+	occurredFrom string
+	occurredTo   string
+	recordedFrom string
+	recordedTo   string
 }
 
 type optionalString struct {
@@ -102,10 +100,11 @@ func (app *App) runCorrect(ctx context.Context, arguments []string) error {
 
 	_, err = fmt.Fprintf(
 		app.stdout,
-		"corrected %s %s %s\n",
+		"corrected %s %s %s %s\n",
 		result.Event.ID,
-		result.Event.Repository.Name,
-		abbreviatedCommit(result.Event.Git.Commit),
+		result.Event.Type,
+		activityScopeName(result.Event),
+		activityIdentifier(result.Event),
 	)
 
 	return err
@@ -139,24 +138,25 @@ func parseSearchOptions(arguments []string, errorOutput io.Writer) (searchOption
 
 func bindSearchFlags(flags *flag.FlagSet, options *searchOptions, values *searchFlagValues) {
 	flags.StringVar(&options.query.Text, "query", "", "text query")
-	flags.StringVar(&options.query.Repository, "repository", "", "repository name or identity")
+	flags.StringVar(&options.query.Scope, "scope", "", "scope name or identity")
 	flags.StringVar(&options.query.Commit, "commit", "", "full or abbreviated commit")
+	flags.StringVar(&options.query.PullRequest, "pull-request", "", "pull-request identity")
 	flags.StringVar(&options.query.Harness, "harness", "", "execution harness")
 	flags.StringVar(&options.query.Model, "model", "", "execution model")
 	flags.StringVar(&values.eventTypes, "type", "", "comma-separated event types")
+	flags.StringVar(&values.occurredFrom, "occurred-from", "", "inclusive RFC3339 occurrence time")
+	flags.StringVar(&values.occurredTo, "occurred-to", "", "exclusive RFC3339 occurrence time")
 	flags.StringVar(&values.recordedFrom, "recorded-from", "", "inclusive RFC3339 recording time")
 	flags.StringVar(&values.recordedTo, "recorded-to", "", "exclusive RFC3339 recording time")
-	flags.StringVar(&values.authoredFrom, "authored-from", "", "inclusive RFC3339 author time")
-	flags.StringVar(&values.authoredTo, "authored-to", "", "exclusive RFC3339 author time")
-	flags.StringVar(&values.committedFrom, "committed-from", "", "inclusive RFC3339 committer time")
-	flags.StringVar(&values.committedTo, "committed-to", "", "exclusive RFC3339 committer time")
+	flags.IntVar(&options.query.DurationMin, "duration-min", 0, "minimum worklog duration")
+	flags.IntVar(&options.query.DurationMax, "duration-max", 0, "maximum worklog duration")
 	flags.IntVar(&options.query.Limit, "limit", 0, "maximum returned events")
 	flags.Var(&options.query.Order, "order", "ascending or descending")
 	flags.BoolVar(&options.json, "json", false, "write JSON output")
 }
 
 func applySearchFlagValues(query *Query, values searchFlagValues) error {
-	query.EventTypes = parseEventTypes(values.eventTypes)
+	query.Types = parseEventTypes(values.eventTypes)
 
 	times := []struct {
 		name   string
@@ -165,10 +165,8 @@ func applySearchFlagValues(query *Query, values searchFlagValues) error {
 	}{
 		{name: "recorded-from", value: values.recordedFrom, target: &query.RecordedFrom},
 		{name: "recorded-to", value: values.recordedTo, target: &query.RecordedTo},
-		{name: "authored-from", value: values.authoredFrom, target: &query.AuthoredFrom},
-		{name: "authored-to", value: values.authoredTo, target: &query.AuthoredTo},
-		{name: "committed-from", value: values.committedFrom, target: &query.CommittedFrom},
-		{name: "committed-to", value: values.committedTo, target: &query.CommittedTo},
+		{name: "occurred-from", value: values.occurredFrom, target: &query.OccurredFrom},
+		{name: "occurred-to", value: values.occurredTo, target: &query.OccurredTo},
 	}
 
 	for _, input := range times {
@@ -188,16 +186,16 @@ func parseShowOptions(arguments []string, errorOutput io.Writer) (showOptions, e
 	flags.SetOutput(errorOutput)
 
 	var options showOptions
-	flags.StringVar(&options.params.Commit, "commit", "", "full or abbreviated commit")
-	flags.StringVar(&options.params.Repository, "repository", "", "repository name or identity")
+	flags.StringVar((*string)(&options.params.ID), "id", "", "event ID")
+	flags.BoolVar(&options.params.Raw, "raw", false, "return the exact stored event")
 	flags.BoolVar(&options.json, "json", false, "write JSON output")
 
 	if err := flags.Parse(arguments); err != nil {
 		return showOptions{}, err
 	}
 
-	if len(flags.Args()) != 0 || strings.TrimSpace(options.params.Commit) == "" {
-		return showOptions{}, fmt.Errorf("usage: acta show --commit <commit> [--repository <repository>] [--json]")
+	if len(flags.Args()) != 0 || options.params.ID == "" {
+		return showOptions{}, fmt.Errorf("usage: acta show --id <event-id> [--raw] [--json]")
 	}
 
 	return options, nil
@@ -209,7 +207,7 @@ func parseCorrectOptions(arguments []string, errorOutput io.Writer) (correctOpti
 
 	var options correctOptions
 
-	note := optionalString{target: &options.params.ReplacementNote}
+	note := optionalString{target: &options.params.ReplacementSummary}
 
 	flags.Var(&note, "note", "replacement note")
 	flags.StringVar((*string)(&options.params.TargetID), "target", "", "current effective event ID")
@@ -291,11 +289,11 @@ func writeEventLine(writer io.Writer, event Event) error {
 	_, err := fmt.Fprintf(
 		writer,
 		"%s %s %s %s %q\n",
-		event.RecordedAt.Format(time.RFC3339),
+		event.OccurredAt.Format(time.RFC3339),
 		event.Type,
-		event.Repository.Name,
-		abbreviatedCommit(event.Git.Commit),
-		event.Git.Subject,
+		activityScopeName(event),
+		activityIdentifier(event),
+		event.Summary,
 	)
 
 	return err

@@ -41,12 +41,12 @@ func TestJournalAppendLoadAndDeduplicate(t *testing.T) {
 	}
 
 	duplicate := event
-	duplicate.ID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
-	duplicate.Note = "This supplied note must not replace the published note"
+	duplicate.ID = nextEventID(t, duplicate.RecordedAt, 3)
+	duplicate.Summary = "This supplied summary must not replace the published summary"
 
 	result = appendJournalEvent(t, journal, duplicate)
 
-	if result.Recorded || result.Event.ID != event.ID || result.Event.Note != event.Note {
+	if result.Recorded || result.Event.ID != event.ID || result.Event.Summary != event.Summary {
 		t.Fatalf("duplicate Append() result = %#v", result)
 	}
 
@@ -108,11 +108,9 @@ func assertReloadedMilestone(t *testing.T, config Config, event Event) {
 		t.Fatalf("reloaded Count() = %d, want 1", reloaded.Count())
 	}
 
-	key := eventMilestoneKey(event)
-
-	got, ok := reloaded.Milestone(key)
+	got, ok := reloaded.Event(event.ID)
 	if !ok || got.ID != event.ID {
-		t.Fatalf("Milestone() = %#v, %v", got, ok)
+		t.Fatalf("Event() = %#v, %v", got, ok)
 	}
 }
 
@@ -128,9 +126,9 @@ func TestJournalMonthlySegments(t *testing.T) {
 
 	august := validMilestoneEvent()
 	september := validMilestoneEvent()
-	september.ID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
 	september.RecordedAt = time.Date(2026, 9, 1, 0, 0, 1, 0, time.UTC)
-	september.Git.Commit = "1123456789abcdef0123456789abcdef01234567"
+	september.ID = nextEventID(t, september.RecordedAt, 3)
+	september.Properties.ObjectID = "1123456789abcdef0123456789abcdef01234567"
 
 	for _, event := range []Event{august, september} {
 		if _, err := journal.Append(context.Background(), event); err != nil {
@@ -163,29 +161,26 @@ func TestJournalCorrectionChain(t *testing.T) {
 	}
 
 	correction := milestone
-	correction.ID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
-	correction.Type = EventTypeCorrection
 	correction.RecordedAt = correction.RecordedAt.Add(time.Hour)
-	correction.Note = "Clarified reusable behavior"
-	correction.TargetID = milestone.ID
+	correction.ID = nextEventID(t, correction.RecordedAt, 4)
+	correction.Summary = "Clarified reusable behavior"
+	correction.Supersedes = milestone.ID
 
-	correction.Reason = "Clarify the supported behavior"
+	correction.CorrectionReason = "Clarify the supported behavior"
 	if _, err := journal.Append(context.Background(), correction); err != nil {
 		t.Fatalf("append correction: %v", err)
 	}
 
-	key := eventMilestoneKey(milestone)
-
-	effective, ok := journal.Effective(key)
+	effective, ok := journal.Effective(milestone.ID)
 	if !ok || effective.ID != correction.ID {
 		t.Fatalf("Effective() = %#v, %v", effective, ok)
 	}
 
 	stale := correction
-	stale.ID = "01K1Z8V7BMMN6W7Y6R8QJHA9SV"
 	stale.RecordedAt = stale.RecordedAt.Add(time.Hour)
+	stale.ID = nextEventID(t, stale.RecordedAt, 5)
 
-	stale.TargetID = milestone.ID
+	stale.Supersedes = milestone.ID
 	if _, err := journal.Append(context.Background(), stale); err == nil {
 		t.Fatal("expected stale correction target error")
 	}
@@ -195,7 +190,7 @@ func TestJournalCorrectionChain(t *testing.T) {
 		t.Fatalf("reload journal: %v", err)
 	}
 
-	effective, ok = reloaded.Effective(key)
+	effective, ok = reloaded.Effective(milestone.ID)
 	if !ok || effective.ID != correction.ID {
 		t.Fatalf("reloaded Effective() = %#v, %v", effective, ok)
 	}

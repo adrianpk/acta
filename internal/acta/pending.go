@@ -182,21 +182,16 @@ func validatePendingMetadata(operation pendingOperation) (string, []byte, error)
 }
 
 func decodePendingEvent(operation pendingOperation, line []byte) (Event, error) {
-	var event Event
-	if err := json.Unmarshal(line[:len(line)-1], &event); err != nil {
+	event, err := decodeCanonicalActivity(line[:len(line)-1])
+	if err != nil {
 		return Event{}, corruptPending(operation.Segment, operation.OriginalSize, "decode pending event: %v", err)
 	}
 
-	if err := event.Validate(); err != nil {
-		return Event{}, corruptPending(operation.Segment, operation.OriginalSize, "%v", err)
-	}
-
-	canonical, err := json.Marshal(event)
+	canonical, err := canonicalActivityLine(event)
 	if err != nil {
 		return Event{}, fmt.Errorf("encode pending event: %w", err)
 	}
 
-	canonical = append(canonical, '\n')
 	if !bytes.Equal(line, canonical) {
 		return Event{}, corruptPending(operation.Segment, operation.OriginalSize, "pending event is not canonical JSON")
 	}

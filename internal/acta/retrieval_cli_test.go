@@ -14,8 +14,8 @@ func TestParseSearchOptions(t *testing.T) {
 
 	options, err := parseSearchOptions([]string{
 		"--query", "runtime",
-		"--repository", "example",
-		"--type", "correction,milestone",
+		"--scope", "example",
+		"--type", "commit,note",
 		"--recorded-from", "2026-08-01T00:00:00+02:00",
 		"--limit", "12",
 		"--order", "ascending",
@@ -29,8 +29,8 @@ func TestParseSearchOptions(t *testing.T) {
 
 	valid := options.json &&
 		options.query.Text == "runtime" &&
-		options.query.Repository == "example" &&
-		len(options.query.EventTypes) == 2 &&
+		options.query.Scope == "example" &&
+		len(options.query.Types) == 2 &&
 		options.query.RecordedFrom.Equal(wantTime) &&
 		options.query.Limit == 12 &&
 		options.query.Order == QueryAscending
@@ -101,8 +101,8 @@ func TestParseCorrectOptionsDistinguishesAbsentAndEmptyNote(t *testing.T) {
 		t.Fatalf("parse empty note: %v", err)
 	}
 
-	if absent.params.ReplacementNote != nil || empty.params.ReplacementNote == nil || *empty.params.ReplacementNote != "" {
-		t.Fatalf("replacement notes = %#v, %#v", absent.params.ReplacementNote, empty.params.ReplacementNote)
+	if absent.params.ReplacementSummary != nil || empty.params.ReplacementSummary == nil || *empty.params.ReplacementSummary != "" {
+		t.Fatalf("replacement summaries = %#v, %#v", absent.params.ReplacementSummary, empty.params.ReplacementSummary)
 	}
 }
 
@@ -115,7 +115,7 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 	stop := startTestAppService(t, config)
 	defer stop()
 
-	runTestAppRecord(t, config, repositoryRoot, []string{"record", "Reusable integration behavior"})
+	runTestAppRecord(t, config, repositoryRoot, []string{"record", "commit", "Reusable integration behavior"})
 
 	var initial QueryResult
 	if err := NewClient(config.SocketPath).Call(context.Background(), "search", Query{Limit: 10}, &initial); err != nil {
@@ -127,7 +127,7 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 	}
 
 	event := initial.Events[0]
-	showOutput := runTestAppCommand(t, config, []string{"show", "--commit", event.Git.Commit[:12], "--json"})
+	showOutput := runTestAppCommand(t, config, []string{"show", "--id", string(event.ID), "--json"})
 
 	var shown ShowResult
 	decodeCLIResult(t, showOutput, &shown)
@@ -151,8 +151,8 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 	decodeCLIResult(t, correctOutput, &corrected)
 	assertCorrectedEvent(t, corrected, event.ID, "Corrected integration behavior")
 
-	if !strings.Contains(runTestAppCommand(t, config, []string{"search"}), "correction") {
-		t.Fatal("human search output does not identify the effective correction")
+	if !strings.Contains(runTestAppCommand(t, config, []string{"search"}), "Corrected integration behavior") {
+		t.Fatal("human search output does not contain the effective correction summary")
 	}
 
 	assertAppReportEndToEnd(t, config, corrected.Event)
@@ -162,8 +162,8 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 func assertAppReportEndToEnd(t *testing.T, config Config, event Event) {
 	t.Helper()
 
-	reportFrom := event.RecordedAt.Format(reportDateLayout)
-	reportTo := event.RecordedAt.AddDate(0, 0, 1).Format(reportDateLayout)
+	reportFrom := event.OccurredAt.Format(reportDateLayout)
+	reportTo := event.OccurredAt.AddDate(0, 0, 1).Format(reportDateLayout)
 	reportOutput := runTestAppCommand(t, config, []string{
 		"report", "--from", reportFrom, "--to", reportTo, "--timezone", "UTC", "--json",
 	})
@@ -175,7 +175,7 @@ func assertAppReportEndToEnd(t *testing.T, config Config, event Event) {
 	humanReport := runTestAppCommand(t, config, []string{
 		"report", "--from", reportFrom, "--to", reportTo, "--timezone", "UTC",
 	})
-	if !strings.Contains(humanReport, reportFrom) || !strings.Contains(humanReport, event.Repository.Name) {
+	if !strings.Contains(humanReport, reportFrom) || !strings.Contains(humanReport, activityScopeName(event)) {
 		t.Fatalf("human report = %q", humanReport)
 	}
 }
@@ -222,10 +222,10 @@ func assertSearchedCount(t *testing.T, result QueryResult, want int) {
 	}
 }
 
-func assertCorrectedEvent(t *testing.T, result CorrectResult, targetID EventID, note string) {
+func assertCorrectedEvent(t *testing.T, result CorrectResult, targetID EventID, summary string) {
 	t.Helper()
 
-	if result.Event.TargetID != targetID || result.Event.Note != note {
+	if result.Event.Supersedes != targetID || result.Event.Summary != summary {
 		t.Fatalf("corrected event = %#v", result.Event)
 	}
 }

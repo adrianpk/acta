@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -97,22 +98,21 @@ func TestVerifierRejectsGlobalInvariantViolations(t *testing.T) {
 			reason: "duplicate event ID",
 		},
 		{
-			name: "duplicate milestone key",
+			name: "duplicate natural key",
 			append: func(t *testing.T, path string, event Event) {
 				event.ID = nextEventID(t, event.RecordedAt.Add(time.Millisecond), 21)
 				event.RecordedAt = event.RecordedAt.Add(time.Millisecond)
 				appendRawEvent(t, path, event)
 			},
-			reason: "duplicate milestone key",
+			reason: "duplicate natural key",
 		},
 		{
 			name: "missing correction target",
 			append: func(t *testing.T, path string, event Event) {
 				event.ID = nextEventID(t, event.RecordedAt.Add(time.Millisecond), 22)
-				event.Type = EventTypeCorrection
 				event.RecordedAt = event.RecordedAt.Add(time.Millisecond)
-				event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ZZ"
-				event.Reason = "Target must precede correction"
+				event.Supersedes = "01K1Z8V7BMMN6W7Y6R8QJHA9ZZ"
+				event.CorrectionReason = "Target must precede correction"
 				appendRawEvent(t, path, event)
 			},
 			reason: "does not exist",
@@ -133,7 +133,7 @@ func TestVerifierRejectsGlobalInvariantViolations(t *testing.T) {
 	}
 }
 
-func TestVerifierRejectsWrongSegmentAndCorrectionSnapshot(t *testing.T) {
+func TestVerifierRejectsWrongSegmentAndCorrectionIdentity(t *testing.T) {
 	t.Parallel()
 
 	t.Run("wrong segment", func(t *testing.T) {
@@ -142,6 +142,7 @@ func TestVerifierRejectsWrongSegmentAndCorrectionSnapshot(t *testing.T) {
 		journal, verifier, event := newSingleEventVerifier(t)
 		segmentPath := SegmentPath(journal.config.JournalRoot, event.RecordedAt)
 		event.RecordedAt = event.RecordedAt.AddDate(0, 1, 0)
+		event.ID = nextEventID(t, event.RecordedAt, 24)
 		rewriteRawEvents(t, segmentPath, event)
 
 		_, err := verifier.Verify(context.Background(), VerifyParams{Full: true})
@@ -155,15 +156,14 @@ func TestVerifierRejectsWrongSegmentAndCorrectionSnapshot(t *testing.T) {
 		segmentPath := SegmentPath(journal.config.JournalRoot, event.RecordedAt)
 		correction := event
 		correction.ID = nextEventID(t, event.RecordedAt.Add(time.Millisecond), 23)
-		correction.Type = EventTypeCorrection
 		correction.RecordedAt = event.RecordedAt.Add(time.Millisecond)
-		correction.TargetID = event.ID
-		correction.Reason = "Detect changed immutable evidence"
-		correction.Git.Subject = "changed subject"
+		correction.Supersedes = event.ID
+		correction.CorrectionReason = "Detect changed natural identity"
+		correction.Properties.ObjectID = "1123456789abcdef0123456789abcdef01234567"
 		appendRawEvent(t, segmentPath, correction)
 
 		_, err := verifier.Verify(context.Background(), VerifyParams{Full: true})
-		assertIntegrityReason(t, err, segmentPath, 2, "snapshot does not match")
+		assertIntegrityReason(t, err, segmentPath, 2, "identity does not match")
 	})
 }
 
@@ -206,9 +206,8 @@ func newCrossSegmentVerifier(t *testing.T) (*Journal, *Verifier, Event, Event) {
 	correction := milestone
 	correction.RecordedAt = time.Date(2026, 9, 1, 0, 1, 0, 0, time.UTC)
 	correction.ID = nextEventID(t, correction.RecordedAt, 2)
-	correction.Type = EventTypeCorrection
-	correction.TargetID = milestone.ID
-	correction.Reason = "Clarify behavior across segments"
+	correction.Supersedes = milestone.ID
+	correction.CorrectionReason = "Clarify behavior across segments"
 	appendJournalEvent(t, journal, correction)
 
 	verifier := NewVerifier(journal)
@@ -369,7 +368,7 @@ func assertVerifierDidNotMutateJournal(t *testing.T, journal *Journal, events ..
 	}
 
 	for _, event := range events {
-		if stored, ok := journal.Event(event.ID); !ok || stored != event {
+		if stored, ok := journal.Event(event.ID); !ok || !reflect.DeepEqual(stored, event) {
 			t.Fatalf("stored event = %#v, %v", stored, ok)
 		}
 	}

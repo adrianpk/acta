@@ -62,6 +62,19 @@ func (id EventID) Validate() error {
 	return nil
 }
 
+func (id EventID) timestampMilliseconds() (int64, error) {
+	if err := id.Validate(); err != nil {
+		return 0, err
+	}
+
+	var milliseconds uint64
+	for _, character := range string(id)[:10] {
+		milliseconds = milliseconds*32 + uint64(strings.IndexRune(crockfordBase32, character))
+	}
+
+	return int64(milliseconds), nil
+}
+
 func encodeULID(data [16]byte) string {
 	value := new(big.Int).SetBytes(data[:])
 	quotient := new(big.Int).Set(value)

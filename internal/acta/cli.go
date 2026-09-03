@@ -8,7 +8,7 @@ import (
 )
 
 type recordOptions struct {
-	note           string
+	summary        string
 	harness        string
 	harnessVersion string
 	model          string
@@ -30,12 +30,7 @@ func (app *App) runRecord(ctx context.Context, arguments []string) error {
 		return err
 	}
 
-	params := RecordParams{
-		Repository: evidence.Repository,
-		Git:        evidence.Git,
-		Note:       options.note,
-		Execution:  options.execution(),
-	}
+	params := commitRecordParams(evidence, options)
 
 	var result RecordResult
 	if err := NewClient(app.config.SocketPath).Call(ctx, "record", params, &result); err != nil {
@@ -47,13 +42,17 @@ func (app *App) runRecord(ctx context.Context, arguments []string) error {
 		status = "already recorded"
 	}
 
-	_, err = fmt.Fprintf(app.stdout, "%s %s %s %s\n", status, result.ID, result.Repository, abbreviatedCommit(result.Commit))
+	_, err = fmt.Fprintf(app.stdout, "%s %s %s %s %s\n", status, result.ID, result.Type, result.ScopeName, result.Identifier)
 
 	return err
 }
 
 func parseRecordOptions(arguments []string, errorOutput io.Writer) (recordOptions, error) {
-	flags := flag.NewFlagSet("record", flag.ContinueOnError)
+	if len(arguments) == 0 || arguments[0] != string(ActivityTypeCommit) {
+		return recordOptions{}, fmt.Errorf("usage: acta record commit [flags] [summary]")
+	}
+
+	flags := flag.NewFlagSet("record commit", flag.ContinueOnError)
 	flags.SetOutput(errorOutput)
 
 	var options recordOptions
@@ -61,17 +60,17 @@ func parseRecordOptions(arguments []string, errorOutput io.Writer) (recordOption
 	flags.StringVar(&options.harnessVersion, "harness-version", "", "agent harness version")
 	flags.StringVar(&options.model, "model", "", "provider-qualified model identifier")
 
-	if err := flags.Parse(arguments); err != nil {
+	if err := flags.Parse(arguments[1:]); err != nil {
 		return recordOptions{}, err
 	}
 
 	positional := flags.Args()
 	if len(positional) > 1 {
-		return recordOptions{}, fmt.Errorf("usage: acta record [flags] [note]")
+		return recordOptions{}, fmt.Errorf("usage: acta record commit [flags] [summary]")
 	}
 
 	if len(positional) == 1 {
-		options.note = positional[0]
+		options.summary = positional[0]
 	}
 
 	if options.harness == "" && (options.harnessVersion != "" || options.model != "") {
@@ -81,12 +80,42 @@ func parseRecordOptions(arguments []string, errorOutput io.Writer) (recordOption
 	return options, nil
 }
 
-func (options recordOptions) execution() *ExecutionContext {
+func commitRecordParams(evidence RepositoryEvidence, options recordOptions) RecordParams {
+	summary := options.summary
+	if summary == "" {
+		summary = evidence.Git.Subject
+	}
+
+	properties := &ActivityProperties{
+		ObjectID: evidence.Git.Commit,
+		Subject:  evidence.Git.Subject,
+	}
+	if !evidence.Git.AuthoredAt.Equal(evidence.Git.CommittedAt) {
+		authoredAt := evidence.Git.AuthoredAt
+		properties.AuthoredAt = &authoredAt
+	}
+
+	return RecordParams{
+		Type:       ActivityTypeCommit,
+		OccurredAt: evidence.Git.CommittedAt,
+		Summary:    summary,
+		Scope: &ActivityScope{
+			Type:     ScopeTypeRepository,
+			Name:     evidence.Repository.Name,
+			Identity: evidence.Repository.Identity,
+		},
+		Properties: properties,
+		Provenance: options.provenance(),
+	}
+}
+
+func (options recordOptions) provenance() *ActivityProvenance {
 	if options.harness == "" {
 		return nil
 	}
 
-	return &ExecutionContext{
+	return &ActivityProvenance{
+		Type:           ProvenanceTypeAgent,
 		Harness:        options.harness,
 		HarnessVersion: options.harnessVersion,
 		Model:          options.model,

@@ -3,108 +3,121 @@ package acta
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestCorrectorAppendsSelfContainedCorrection(t *testing.T) {
+func TestCorrectorAppendsSelfContainedReplacement(t *testing.T) {
 	t.Parallel()
 
-	fixture := newQueryFixture(t)
-	corrector := deterministicCorrector(fixture.journal)
-	note := "Replacement significance note"
+	journal := loadedJournalWithEvent(t, validMilestoneEvent())
+	target := validMilestoneEvent()
+	corrector := deterministicCorrector(journal)
+	summary := "Replacement significance summary"
 
 	result, err := corrector.Correct(context.Background(), CorrectParams{
-		TargetID:        fixture.correction.ID,
-		Reason:          "Clarify the final behavior",
-		ReplacementNote: &note,
+		TargetID:           target.ID,
+		Reason:             "Clarify the final behavior",
+		ReplacementSummary: &summary,
 	})
 	if err != nil {
 		t.Fatalf("Correct() error = %v", err)
 	}
 
 	event := result.Event
-	assertSelfContainedCorrection(t, event, fixture.correction, note)
+	assertReplacementSnapshot(t, event, target, summary)
 
-	effective, ok := fixture.journal.Effective(eventMilestoneKey(event))
+	effective, ok := journal.Effective(target.ID)
 	if !ok || effective.ID != event.ID {
 		t.Fatalf("Effective() = %#v, %v", effective, ok)
 	}
 }
 
-func assertSelfContainedCorrection(t *testing.T, event, target Event, note string) {
+func assertReplacementSnapshot(t *testing.T, event, target Activity, summary string) {
 	t.Helper()
 
-	if event.Type != EventTypeCorrection || event.TargetID != target.ID || event.Note != note {
+	if event.Type != target.Type || event.Supersedes != target.ID || event.Summary != summary {
 		t.Fatalf("Correct() event = %#v", event)
 	}
 
-	if event.Repository != target.Repository || event.Git != target.Git {
-		t.Fatalf("correction evidence = %#v", event)
+	if event.Scope == target.Scope || *event.Scope != *target.Scope {
+		t.Fatalf("correction scope = %#v", event.Scope)
 	}
 
-	if event.Execution == target.Execution || *event.Execution != *target.Execution {
-		t.Fatalf("correction execution = %#v", event.Execution)
+	if event.Properties == target.Properties || !reflect.DeepEqual(*event.Properties, *target.Properties) {
+		t.Fatalf("correction properties = %#v", event.Properties)
+	}
+
+	if event.Provenance == target.Provenance || *event.Provenance != *target.Provenance {
+		t.Fatalf("correction provenance = %#v", event.Provenance)
 	}
 }
 
-func TestCorrectorCopiesNoteWhenReplacementIsAbsent(t *testing.T) {
+func TestCorrectorPreservesSummaryWhenReplacementIsAbsent(t *testing.T) {
 	t.Parallel()
 
-	fixture := newQueryFixture(t)
-	corrector := deterministicCorrector(fixture.journal)
+	target := validMilestoneEvent()
+	journal := loadedJournalWithEvent(t, target)
 
-	result, err := corrector.Correct(context.Background(), CorrectParams{
-		TargetID: fixture.correction.ID,
-		Reason:   "Preserve the effective note",
+	result, err := deterministicCorrector(journal).Correct(context.Background(), CorrectParams{
+		TargetID: target.ID,
+		Reason:   "Preserve the effective summary",
 	})
 	if err != nil {
 		t.Fatalf("Correct() error = %v", err)
 	}
 
-	if result.Event.Note != fixture.correction.Note {
-		t.Fatalf("correction note = %q, want %q", result.Event.Note, fixture.correction.Note)
+	if result.Event.Summary != target.Summary {
+		t.Fatalf("correction summary = %q, want %q", result.Event.Summary, target.Summary)
 	}
 }
 
 func TestCorrectorRejectsMissingStaleAndInvalidTargets(t *testing.T) {
 	t.Parallel()
 
-	fixture := newQueryFixture(t)
+	target := validMilestoneEvent()
+	journal := loadedJournalWithEvent(t, target)
+
+	first, err := deterministicCorrector(journal).Correct(context.Background(), CorrectParams{
+		TargetID: target.ID,
+		Reason:   "Create an effective replacement",
+	})
+	if err != nil {
+		t.Fatalf("create correction: %v", err)
+	}
 
 	tests := []struct {
 		name   string
 		params CorrectParams
 		want   error
 	}{
-		{
-			name:   "missing",
-			params: CorrectParams{TargetID: "01K1Z8V7BMMN6W7Y6R8QJHA9ZZ", Reason: "Missing target"},
-			want:   ErrCorrectionTargetNotFound,
-		},
-		{
-			name:   "stale",
-			params: CorrectParams{TargetID: fixture.milestoneA.ID, Reason: "Stale target"},
-			want:   ErrCorrectionTargetStale,
-		},
-		{
-			name:   "invalid reason",
-			params: CorrectParams{TargetID: fixture.correction.ID, Reason: ""},
-			want:   ErrEventInvalid,
-		},
+		{name: "missing", params: CorrectParams{TargetID: "01K1Z8V7BMMN6W7Y6R8QJHA9ZZ", Reason: "Missing target"}, want: ErrCorrectionTargetNotFound},
+		{name: "stale", params: CorrectParams{TargetID: target.ID, Reason: "Stale target"}, want: ErrCorrectionTargetStale},
+		{name: "invalid reason", params: CorrectParams{TargetID: first.Event.ID}, want: ErrEventInvalid},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			corrector := deterministicCorrector(fixture.journal)
-			if _, err := corrector.Correct(context.Background(), test.params); !errors.Is(err, test.want) {
+			if _, err := deterministicCorrector(journal).Correct(context.Background(), test.params); !errors.Is(err, test.want) {
 				t.Fatalf("Correct() error = %v, want %v", err, test.want)
 			}
 		})
 	}
+}
+
+func loadedJournalWithEvent(t *testing.T, event Event) *Journal {
+	t.Helper()
+
+	journal := NewJournal(testJournalConfig(t))
+	if err := journal.Load(context.Background()); err != nil {
+		t.Fatalf("load journal: %v", err)
+	}
+
+	appendJournalEvent(t, journal, event)
+
+	return journal
 }
 
 func deterministicCorrector(journal *Journal) *Corrector {

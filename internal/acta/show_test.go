@@ -6,74 +6,46 @@ import (
 	"testing"
 )
 
-func TestJournalShowReturnsEffectiveCorrection(t *testing.T) {
+func TestJournalShowResolvesEffectiveAndRawEvents(t *testing.T) {
 	t.Parallel()
 
 	fixture := newQueryFixture(t)
 
-	result, err := fixture.journal.Show(context.Background(), ShowParams{
-		Commit: fixture.milestoneA.Git.Commit[:12],
-	})
+	effective, err := fixture.journal.Show(context.Background(), ShowParams{ID: fixture.milestoneA.ID})
 	if err != nil {
 		t.Fatalf("Show() error = %v", err)
 	}
 
-	if result.Event.ID != fixture.correction.ID {
-		t.Fatalf("Show() event = %#v", result.Event)
+	if effective.Event.ID != fixture.correction.ID {
+		t.Fatalf("effective event = %#v", effective.Event)
+	}
+
+	raw, err := fixture.journal.Show(context.Background(), ShowParams{ID: fixture.milestoneA.ID, Raw: true})
+	if err != nil {
+		t.Fatalf("raw Show() error = %v", err)
+	}
+
+	if raw.Event.ID != fixture.milestoneA.ID {
+		t.Fatalf("raw event = %#v", raw.Event)
 	}
 }
 
-func TestJournalShowRejectsMissingAndAmbiguousCommit(t *testing.T) {
+func TestJournalShowRejectsMissingAndInvalidIDs(t *testing.T) {
 	t.Parallel()
 
 	fixture := newQueryFixture(t)
-	duplicateCommit := distinctMilestoneEvent(t, 4)
-	duplicateCommit.Git.Commit = fixture.milestoneA.Git.Commit
-	duplicateCommit.Repository = RepositoryReference{
-		Name:     "duplicate",
-		Root:     "/workspace/duplicate",
-		Identity: "https://example.test/team/duplicate.git",
-		Remote:   "https://example.test/team/duplicate.git",
-	}
-	appendJournalEvent(t, fixture.journal, duplicateCommit)
-
 	tests := []struct {
-		name   string
 		params ShowParams
 		want   error
 	}{
-		{
-			name:   "missing",
-			params: ShowParams{Commit: "bbbbbbbbbbbb"},
-			want:   ErrEventNotFound,
-		},
-		{
-			name:   "ambiguous repository",
-			params: ShowParams{Commit: fixture.milestoneA.Git.Commit},
-			want:   ErrCommitAmbiguous,
-		},
-		{
-			name:   "missing commit",
-			params: ShowParams{},
-			want:   ErrQueryInvalid,
-		},
+		{params: ShowParams{ID: "01K1Z8V7BMMN6W7Y6R8QJHA9ZZ"}, want: ErrEventNotFound},
+		{params: ShowParams{}, want: ErrQueryInvalid},
+		{params: ShowParams{ID: "invalid"}, want: ErrQueryInvalid},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			if _, err := fixture.journal.Show(context.Background(), test.params); !errors.Is(err, test.want) {
-				t.Fatalf("Show() error = %v, want %v", err, test.want)
-			}
-		})
-	}
-
-	result, err := fixture.journal.Show(context.Background(), ShowParams{
-		Commit:     fixture.milestoneA.Git.Commit,
-		Repository: fixture.milestoneA.Repository.Name,
-	})
-	if err != nil || result.Event.ID != fixture.correction.ID {
-		t.Fatalf("qualified Show() = %#v, %v", result, err)
+		if _, err := fixture.journal.Show(context.Background(), test.params); !errors.Is(err, test.want) {
+			t.Fatalf("Show(%#v) error = %v, want %v", test.params, err, test.want)
+		}
 	}
 }

@@ -97,13 +97,9 @@ func TestNewRepositoryReference(t *testing.T) {
 			},
 		},
 		{
-			name: "local identity",
-			root: "/workspace/local-example",
-			want: RepositoryReference{
-				Name:     "local-example",
-				Root:     "/workspace/local-example",
-				Identity: "file:///workspace/local-example",
-			},
+			name:    "local identity requires root commit",
+			root:    "/workspace/local-example",
+			wantErr: true,
 		},
 		{
 			name:    "relative root",

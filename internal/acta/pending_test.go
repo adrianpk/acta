@@ -354,7 +354,7 @@ func distinctMilestoneEvent(t *testing.T, sequence int) Event {
 
 	event := validMilestoneEvent()
 	event.RecordedAt = event.RecordedAt.Add(time.Duration(sequence) * time.Millisecond)
-	event.Git.Commit = fmt.Sprintf("%040x", sequence)
+	event.Properties.ObjectID = fmt.Sprintf("%040x", sequence)
 
 	entropy := make([]byte, 10)
 	entropy[8] = byte(sequence >> 8)

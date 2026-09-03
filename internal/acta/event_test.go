@@ -1,179 +1,44 @@
 package acta
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
 
-type eventValidationCase struct {
-	name    string
-	change  func(*Event)
-	wantErr bool
-}
-
-func TestEventValidate(t *testing.T) {
-	t.Parallel()
-
-	valid := validMilestoneEvent()
-
-	tests := append(commonEventValidationCases(), typeEventValidationCases()...)
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			assertEventValidation(t, valid, test)
-		})
-	}
-}
-
-func commonEventValidationCases() []eventValidationCase {
-	return []eventValidationCase{
-		{name: "milestone"},
-		{
-			name:    "schema",
-			change:  func(event *Event) { event.SchemaVersion = "acta/v2" },
-			wantErr: true,
-		},
-		{
-			name:    "event ID",
-			change:  func(event *Event) { event.ID = "invalid" },
-			wantErr: true,
-		},
-		{
-			name:    "recorded offset",
-			change:  func(event *Event) { event.RecordedAt = event.RecordedAt.In(time.FixedZone("test", 3600)) },
-			wantErr: true,
-		},
-		{
-			name:    "execution harness",
-			change:  func(event *Event) { event.Execution.Harness = "pi\nagent" },
-			wantErr: true,
-		},
-		{
-			name:    "repository root",
-			change:  func(event *Event) { event.Repository.Root = "relative/repo" },
-			wantErr: true,
-		},
-		{
-			name:    "commit",
-			change:  func(event *Event) { event.Git.Commit = strings.Repeat("A", 40) },
-			wantErr: true,
-		},
-		{
-			name:    "author time",
-			change:  func(event *Event) { event.Git.AuthoredAt = time.Time{} },
-			wantErr: true,
-		},
-		{
-			name:    "note control",
-			change:  func(event *Event) { event.Note = "secret\nredaction" },
-			wantErr: true,
-		},
-		{
-			name:    "note length",
-			change:  func(event *Event) { event.Note = strings.Repeat("x", maxNoteLength+1) },
-			wantErr: true,
-		},
-	}
-}
-
-func typeEventValidationCases() []eventValidationCase {
-	return []eventValidationCase{
-		{
-			name: "correction",
-			change: func(event *Event) {
-				event.Type = EventTypeCorrection
-				event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
-				event.Reason = "Clarify the affected runtime"
-			},
-		},
-		{
-			name:    "milestone target",
-			change:  func(event *Event) { event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST" },
-			wantErr: true,
-		},
-		{
-			name: "correction target",
-			change: func(event *Event) {
-				event.Type = EventTypeCorrection
-				event.Reason = "Clarify the affected runtime"
-			},
-			wantErr: true,
-		},
-		{
-			name: "correction reason",
-			change: func(event *Event) {
-				event.Type = EventTypeCorrection
-				event.TargetID = "01K1Z8V7BMMN6W7Y6R8QJHA9ST"
-			},
-			wantErr: true,
-		},
-	}
-}
-
-func assertEventValidation(t *testing.T, valid Event, test eventValidationCase) {
-	t.Helper()
-
-	event := valid
-	execution := *valid.Execution
-
-	event.Execution = &execution
-	if test.change != nil {
-		test.change(&event)
-	}
-
-	err := event.Validate()
-	if test.wantErr && err == nil {
-		t.Fatal("expected an error")
-	}
-
-	if !test.wantErr && err != nil {
-		t.Fatalf("Validate() error = %v", err)
-	}
-}
-
-func TestEventValidateOptionalFields(t *testing.T) {
+func TestEventAliasUsesCanonicalActivityValidation(t *testing.T) {
 	t.Parallel()
 
 	event := validMilestoneEvent()
-	event.Execution = nil
-	event.Repository.Remote = ""
-	event.Repository.Identity = "file:///workspace/example"
-	event.Git.Branch = ""
-	event.Note = ""
-
 	if err := event.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }
 
 func validMilestoneEvent() Event {
+	authoredAt := time.Date(2026, 8, 5, 14, 18, 3, 0, time.UTC)
+	recordedAt := time.Date(2026, 8, 5, 14, 22, 31, 418000000, time.UTC)
+
 	return Event{
-		SchemaVersion: SchemaVersion,
-		ID:            "01K1Z8V7BMMN6W7Y6R8QJHA9SS",
-		Type:          EventTypeMilestone,
-		RecordedAt:    time.Date(2026, 8, 5, 14, 22, 31, 418000000, time.UTC),
-		Execution: &ExecutionContext{
+		ID:         testEventID(recordedAt, 2),
+		Type:       ActivityTypeCommit,
+		OccurredAt: time.Date(2026, 8, 5, 14, 20, 47, 0, time.UTC),
+		RecordedAt: recordedAt,
+		Summary:    "Reusable protocol behavior across agent-enabled projects",
+		Scope: &ActivityScope{
+			Type:     ScopeTypeRepository,
+			Name:     "example",
+			Identity: "ssh://git@example.test/team/example.git",
+		},
+		Properties: &ActivityProperties{
+			ObjectID:   "0123456789abcdef0123456789abcdef01234567",
+			Subject:    "feat: add reusable agent protocol",
+			AuthoredAt: &authoredAt,
+		},
+		Provenance: &ActivityProvenance{
+			Type:           ProvenanceTypeAgent,
 			Harness:        "pi",
 			HarnessVersion: "0.42.0",
 			Model:          "openai/gpt-5.6",
 		},
-		Repository: RepositoryReference{
-			Name:     "example",
-			Root:     "/workspace/example",
-			Identity: "ssh://git@example.test/team/example.git",
-			Remote:   "ssh://git@example.test/team/example.git",
-		},
-		Git: GitReference{
-			Commit:        "0123456789abcdef0123456789abcdef01234567",
-			Branch:        "dev",
-			Subject:       "feat: add reusable agent protocol",
-			AuthoredAt:    time.Date(2026, 8, 5, 14, 18, 3, 0, time.UTC),
-			CommittedAt:   time.Date(2026, 8, 5, 14, 20, 47, 0, time.UTC),
-			WorktreeClean: true,
-		},
-		Note: "Reusable protocol behavior across agent-enabled projects",
 	}
 }

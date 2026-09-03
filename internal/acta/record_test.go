@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestRecorderPublishesIdempotentMilestone(t *testing.T) {
+func TestRecorderPublishesIdempotentCommit(t *testing.T) {
 	t.Parallel()
 
 	recorder, journal := testRecorder(t)
@@ -24,50 +24,50 @@ func TestRecorderPublishesIdempotentMilestone(t *testing.T) {
 		t.Fatalf("second Record() error = %v", err)
 	}
 
-	assertRecordResults(t, params, first, second)
-	assertRecordedMilestone(t, journal, first.ID, params.Note)
+	assertIdempotentRecord(t, journal, params, first, second)
 }
 
-func assertRecordResults(t *testing.T, params RecordParams, first, second RecordResult) {
+func assertIdempotentRecord(t *testing.T, journal *Journal, params RecordParams, first, second RecordResult) {
 	t.Helper()
 
-	if !first.Recorded || second.Recorded || first.ID != second.ID {
-		t.Fatalf("record results = %#v, %#v", first, second)
+	wantFirst := RecordResult{
+		ID:         first.ID,
+		Recorded:   true,
+		Type:       ActivityTypeCommit,
+		ScopeName:  params.Scope.Name,
+		Identifier: abbreviatedCommit(params.Properties.ObjectID),
+	}
+	if first != wantFirst {
+		t.Fatalf("first record result = %#v, want %#v", first, wantFirst)
 	}
 
-	if first.Repository != params.Repository.Name || first.Commit != params.Git.Commit {
-		t.Fatalf("record result = %#v", first)
-	}
-}
+	wantSecond := wantFirst
 
-func assertRecordedMilestone(t *testing.T, journal *Journal, id EventID, note string) {
-	t.Helper()
+	wantSecond.Recorded = false
+	if second != wantSecond {
+		t.Fatalf("second record result = %#v, want %#v", second, wantSecond)
+	}
 
 	if journal.Count() != 1 {
 		t.Fatalf("journal count = %d, want 1", journal.Count())
 	}
 
-	event, ok := journal.Event(id)
+	event, ok := journal.Event(first.ID)
 	if !ok {
 		t.Fatal("recorded event is missing")
 	}
 
-	wantRecordedAt := time.Date(2026, 8, 5, 18, 0, 0, 0, time.UTC)
-	if !event.RecordedAt.Equal(wantRecordedAt) || event.Note != note {
+	if event.Summary != params.Summary || !event.RecordedAt.Equal(time.Date(2026, 8, 5, 18, 0, 0, 0, time.UTC)) {
 		t.Fatalf("recorded event = %#v", event)
 	}
 }
 
-func TestRecorderPreservesOptionalExecution(t *testing.T) {
+func TestRecorderPreservesOptionalProvenance(t *testing.T) {
 	t.Parallel()
 
 	recorder, journal := testRecorder(t)
 	params := validRecordParams()
-	params.Execution = &ExecutionContext{
-		Harness:        "codex",
-		HarnessVersion: "1.2.3",
-		Model:          "openai/example-model",
-	}
+	params.Provenance = &ActivityProvenance{Type: ProvenanceTypeAgent, Harness: "codex", HarnessVersion: "1.2.3", Model: "openai/example-model"}
 
 	result, err := recorder.Record(context.Background(), params)
 	if err != nil {
@@ -75,55 +75,34 @@ func TestRecorderPreservesOptionalExecution(t *testing.T) {
 	}
 
 	event, ok := journal.Event(result.ID)
-	if !ok || event.Execution == nil || *event.Execution != *params.Execution {
-		t.Fatalf("recorded execution = %#v", event.Execution)
+	if !ok || event.Provenance == nil || *event.Provenance != *params.Provenance {
+		t.Fatalf("recorded provenance = %#v", event.Provenance)
 	}
 }
 
-func TestRecorderRejectsInvalidEvidence(t *testing.T) {
+func TestRecorderRejectsInvalidActivity(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name   string
 		change func(*RecordParams)
 	}{
-		{
-			name: "credential-bearing remote",
-			change: func(params *RecordParams) {
-				params.Repository.Remote = "https://user:secret@example.test/team/example.git"
-				params.Repository.Identity = params.Repository.Remote
-			},
-		},
-		{
-			name: "noncanonical identity",
-			change: func(params *RecordParams) {
-				params.Repository.Identity = "https://other.example.test/team/example.git"
-			},
-		},
-		{
-			name: "multiline note",
-			change: func(params *RecordParams) {
-				params.Note = "important\nsecret"
-			},
-		},
-		{
-			name: "invalid execution",
-			change: func(params *RecordParams) {
-				params.Execution = &ExecutionContext{Harness: "codex\nagent"}
-			},
-		},
+		{name: "missing type", change: func(params *RecordParams) { params.Type = "" }},
+		{name: "multiline summary", change: func(params *RecordParams) { params.Summary = "important\nsecret" }},
+		{name: "invalid scope", change: func(params *RecordParams) { params.Scope.Identity = "" }},
+		{name: "invalid provenance", change: func(params *RecordParams) {
+			params.Provenance = &ActivityProvenance{Type: ProvenanceTypeAgent, Harness: "codex\nagent"}
+		}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			recorder, journal := testRecorder(t)
 			params := validRecordParams()
 			test.change(&params)
 
-			if _, err := recorder.Record(context.Background(), params); err == nil {
-				t.Fatal("expected validation error")
+			if _, err := recorder.Record(context.Background(), params); !errors.Is(err, ErrEventInvalid) {
+				t.Fatalf("Record() error = %v, want ErrEventInvalid", err)
 			}
 
 			if journal.Count() != 0 {
@@ -133,22 +112,18 @@ func TestRecorderRejectsInvalidEvidence(t *testing.T) {
 	}
 }
 
-func TestRecorderReportsEntropyFailure(t *testing.T) {
+func TestRecorderReportsEntropyFailureAndRequiresLoadedJournal(t *testing.T) {
 	t.Parallel()
 
 	recorder, _ := testRecorder(t)
-	recorder.entropy = failingReader{}
 
+	recorder.entropy = failingReader{}
 	if _, err := recorder.Record(context.Background(), validRecordParams()); err == nil {
 		t.Fatal("expected entropy error")
 	}
-}
 
-func TestRecorderRequiresLoadedJournal(t *testing.T) {
-	t.Parallel()
-
-	recorder := NewRecorder(NewJournal(testJournalConfig(t)))
-	if _, err := recorder.Record(context.Background(), validRecordParams()); !errors.Is(err, ErrJournalNotLoaded) {
+	unloaded := NewRecorder(NewJournal(testJournalConfig(t)))
+	if _, err := unloaded.Record(context.Background(), validRecordParams()); !errors.Is(err, ErrJournalNotLoaded) {
 		t.Fatalf("Record() error = %v, want ErrJournalNotLoaded", err)
 	}
 }
@@ -174,8 +149,12 @@ func validRecordParams() RecordParams {
 	event := validMilestoneEvent()
 
 	return RecordParams{
-		Repository: event.Repository,
-		Git:        event.Git,
-		Note:       event.Note,
+		Type:       event.Type,
+		OccurredAt: event.OccurredAt,
+		Summary:    event.Summary,
+		Scope:      event.Scope,
+		Properties: event.Properties,
+		References: event.References,
+		Provenance: event.Provenance,
 	}
 }

@@ -1,6 +1,7 @@
 package acta
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -314,11 +315,22 @@ func validNoteActivity() Activity {
 }
 
 func baseActivity(activityType ActivityType, summary string) Activity {
+	recordedAt := time.Date(2026, 8, 5, 14, 22, 31, 418000000, time.UTC)
+
 	return Activity{
-		ID:         "01K1Z8V7BMMN6W7Y6R8QJHA9SS",
+		ID:         testEventID(recordedAt, 1),
 		Type:       activityType,
 		OccurredAt: time.Date(2026, 8, 5, 14, 20, 47, 0, time.UTC),
-		RecordedAt: time.Date(2026, 8, 5, 14, 22, 31, 418000000, time.UTC),
+		RecordedAt: recordedAt,
 		Summary:    summary,
 	}
+}
+
+func testEventID(recordedAt time.Time, marker byte) EventID {
+	id, err := NewEventID(recordedAt, bytes.NewReader(bytes.Repeat([]byte{marker}, 10)))
+	if err != nil {
+		panic(err)
+	}
+
+	return id
 }

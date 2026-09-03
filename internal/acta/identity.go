@@ -24,17 +24,18 @@ func NewRepositoryReference(root, remote string) (RepositoryReference, error) {
 	}
 
 	reference := RepositoryReference{Name: name, Root: root}
-	if strings.TrimSpace(remote) == "" {
-		reference.Identity = (&url.URL{Scheme: "file", Path: filepath.ToSlash(root)}).String()
-	} else {
-		normalized, err := NormalizeRepositoryRemote(remote)
-		if err != nil {
-			return RepositoryReference{}, err
-		}
 
-		reference.Identity = normalized
-		reference.Remote = normalized
+	if strings.TrimSpace(remote) == "" {
+		return RepositoryReference{}, fmt.Errorf("create repository reference: local identity is required")
 	}
+
+	normalized, err := NormalizeRepositoryRemote(remote)
+	if err != nil {
+		return RepositoryReference{}, err
+	}
+
+	reference.Identity = normalized
+	reference.Remote = normalized
 
 	if err := reference.Validate(); err != nil {
 		return RepositoryReference{}, err
@@ -49,9 +50,9 @@ func (reference RepositoryReference) validateCanonicalIdentity() error {
 	}
 
 	if reference.Remote == "" {
-		expected := (&url.URL{Scheme: "file", Path: filepath.ToSlash(reference.Root)}).String()
-		if reference.Identity != expected {
-			return fmt.Errorf("validate repository: local identity does not match root")
+		objectID, found := strings.CutPrefix(reference.Identity, "git-root:")
+		if !found || !validObjectID(objectID) {
+			return fmt.Errorf("validate repository: local identity must identify a root commit")
 		}
 
 		return nil

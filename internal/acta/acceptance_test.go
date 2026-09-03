@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -24,7 +25,7 @@ func TestAcceptanceCrossSegmentCorrectionSurvivesRestart(t *testing.T) {
 	milestone := validMilestoneEvent()
 	milestone.RecordedAt = time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
 	milestone.ID = nextEventID(t, milestone.RecordedAt, 31)
-	milestone.Execution = &ExecutionContext{Harness: "codex", Model: "provider/model"}
+	milestone.Provenance = &ActivityProvenance{Type: ProvenanceTypeAgent, Harness: "codex", Model: "provider/model"}
 	appendJournalEvent(t, journal, milestone)
 
 	corrector := NewCorrector(journal)
@@ -141,12 +142,12 @@ func assertAcceptanceCorrection(t *testing.T, journal *Journal, milestone, corre
 	}
 
 	effective := result.Events[0]
-	if effective.TargetID != milestone.ID || effective.Repository != milestone.Repository || effective.Git != milestone.Git {
+	if effective.Supersedes != milestone.ID || *effective.Scope != *milestone.Scope || !reflect.DeepEqual(*effective.Properties, *milestone.Properties) {
 		t.Fatalf("self-contained correction = %#v", effective)
 	}
 
-	if effective.Execution == milestone.Execution || *effective.Execution != *milestone.Execution {
-		t.Fatalf("correction execution = %#v", effective.Execution)
+	if effective.Provenance == milestone.Provenance || *effective.Provenance != *milestone.Provenance {
+		t.Fatalf("correction provenance = %#v", effective.Provenance)
 	}
 }
 

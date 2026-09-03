@@ -20,7 +20,7 @@ func TestAppRecordEndToEndAcrossServiceRestart(t *testing.T) {
 
 	stopFirst := startTestAppService(t, config)
 	firstOutput := runTestAppRecord(t, config, repositoryRoot, []string{
-		"record",
+		"record", "commit",
 		"--harness", "codex",
 		"--harness-version", "1.2.3",
 		"--model", "openai/example-model",
@@ -34,7 +34,7 @@ func TestAppRecordEndToEndAcrossServiceRestart(t *testing.T) {
 	}
 
 	stopSecond := startTestAppService(t, config)
-	secondOutput := runTestAppRecord(t, config, repositoryRoot, []string{"record"})
+	secondOutput := runTestAppRecord(t, config, repositoryRoot, []string{"record", "commit"})
 
 	stopSecond()
 
@@ -62,7 +62,7 @@ func TestAppRecordDoesNotFallbackWithoutService(t *testing.T) {
 	app := NewApp(config, &bytes.Buffer{}, &bytes.Buffer{})
 	app.workingDirectory = func() (string, error) { return repositoryRoot, nil }
 
-	if err := app.Run(context.Background(), []string{"record", "Significant behavior"}); err == nil {
+	if err := app.Run(context.Background(), []string{"record", "commit", "Significant behavior"}); err == nil {
 		t.Fatal("expected unavailable service error")
 	}
 
@@ -137,13 +137,13 @@ func TestParseRecordOptions(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name:      "note only",
-			arguments: []string{"Reusable behavior"},
-			want:      recordOptions{note: "Reusable behavior"},
+			name:      "summary only",
+			arguments: []string{"commit", "Reusable behavior"},
+			want:      recordOptions{summary: "Reusable behavior"},
 		},
 		{
 			name:      "execution",
-			arguments: []string{"--harness", "pi", "--harness-version", "2.0", "--model", "provider/model"},
+			arguments: []string{"commit", "--harness", "pi", "--harness-version", "2.0", "--model", "provider/model"},
 			want: recordOptions{
 				harness:        "pi",
 				harnessVersion: "2.0",
@@ -151,13 +151,13 @@ func TestParseRecordOptions(t *testing.T) {
 			},
 		},
 		{
-			name:      "too many notes",
-			arguments: []string{"one", "two"},
+			name:      "too many summaries",
+			arguments: []string{"commit", "one", "two"},
 			wantErr:   true,
 		},
 		{
 			name:      "model without harness",
-			arguments: []string{"--model", "provider/model"},
+			arguments: []string{"commit", "--model", "provider/model"},
 			wantErr:   true,
 		},
 	}

@@ -129,7 +129,7 @@ func TestServiceHandlesRetrievalAndCorrection(t *testing.T) {
 		t.Fatalf("search result = %#v", searchResult)
 	}
 
-	showResponse := handleTestRequest(t, service, "show", ShowParams{Commit: fixture.milestoneA.Git.Commit})
+	showResponse := handleTestRequest(t, service, "show", ShowParams{ID: fixture.milestoneA.ID})
 
 	var showResult ShowResult
 	decodeTestResult(t, showResponse, &showResult)
@@ -159,7 +159,7 @@ func TestServiceHandlesRetrievalAndCorrection(t *testing.T) {
 	var correctResult CorrectResult
 	decodeTestResult(t, correctResponse, &correctResult)
 
-	if correctResult.Event.TargetID != fixture.correction.ID {
+	if correctResult.Event.Supersedes != fixture.correction.ID {
 		t.Fatalf("correct result = %#v", correctResult)
 	}
 
@@ -194,7 +194,7 @@ func TestServiceMapsRetrievalAndCorrectionErrors(t *testing.T) {
 		{
 			name:      "missing event",
 			operation: "show",
-			params:    ShowParams{Commit: "bbbbbbbbbbbb"},
+			params:    ShowParams{ID: "01K1Z8V7BMMN6W7Y6R8QJHA9ZZ"},
 			wantCode:  ErrorNotFound,
 		},
 		{

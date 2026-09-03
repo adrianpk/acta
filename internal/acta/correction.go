@@ -14,16 +14,16 @@ var ErrCorrectionTargetNotFound = errors.New("correction target was not found")
 // ErrCorrectionTargetStale identifies a target that is no longer effective.
 var ErrCorrectionTargetStale = errors.New("correction target is not effective")
 
-// CorrectParams contains the append-only correction input.
+// CorrectParams contains append-only correction input.
 type CorrectParams struct {
-	TargetID        EventID `json:"target_id"`
-	Reason          string  `json:"reason"`
-	ReplacementNote *string `json:"replacement_note,omitempty"`
+	TargetID           EventID `json:"target_id"`
+	Reason             string  `json:"reason"`
+	ReplacementSummary *string `json:"replacement_summary,omitempty"`
 }
 
 // CorrectResult describes a newly appended correction.
 type CorrectResult struct {
-	Event Event `json:"event"`
+	Event Activity `json:"event"`
 }
 
 // Corrector creates service-owned correction identity and timestamps.
@@ -38,7 +38,7 @@ func NewCorrector(journal *Journal) *Corrector {
 	return &Corrector{journal: journal, now: time.Now}
 }
 
-// Correct appends a self-contained correction to the current effective event.
+// Correct appends a complete replacement for one effective activity.
 func (corrector *Corrector) Correct(ctx context.Context, params CorrectParams) (CorrectResult, error) {
 	if !corrector.journal.Loaded() {
 		return CorrectResult{}, ErrJournalNotLoaded
@@ -49,57 +49,71 @@ func (corrector *Corrector) Correct(ctx context.Context, params CorrectParams) (
 		return CorrectResult{}, ErrCorrectionTargetNotFound
 	}
 
-	effective, ok := corrector.journal.Effective(eventMilestoneKey(target))
+	effective, ok := corrector.journal.Effective(target.ID)
 	if !ok || effective.ID != target.ID {
 		return CorrectResult{}, ErrCorrectionTargetStale
 	}
 
-	recordedAt := corrector.now().UTC()
-
-	id, err := NewEventID(recordedAt, corrector.entropy)
+	event, err := corrector.replacement(target, params)
 	if err != nil {
 		return CorrectResult{}, err
 	}
 
-	note := target.Note
-	if params.ReplacementNote != nil {
-		note = *params.ReplacementNote
-	}
-
-	event := Event{
-		SchemaVersion: SchemaVersion,
-		ID:            id,
-		Type:          EventTypeCorrection,
-		RecordedAt:    recordedAt,
-		Execution:     copyExecution(target.Execution),
-		Repository:    target.Repository,
-		Git:           target.Git,
-		Note:          note,
-		TargetID:      target.ID,
-		Reason:        params.Reason,
-	}
-	if err := event.Validate(); err != nil {
-		return CorrectResult{}, fmt.Errorf("%w: %w", ErrEventInvalid, err)
-	}
-
 	result, err := corrector.journal.Append(ctx, event)
 	if err != nil {
-		if errors.Is(err, ErrCorrectionTargetStale) {
-			return CorrectResult{}, err
-		}
-
 		return CorrectResult{}, err
 	}
 
 	return CorrectResult{Event: result.Event}, nil
 }
 
-func copyExecution(execution *ExecutionContext) *ExecutionContext {
-	if execution == nil {
-		return nil
+func (corrector *Corrector) replacement(target Activity, params CorrectParams) (Activity, error) {
+	recordedAt := corrector.now().UTC()
+
+	id, err := NewEventID(recordedAt, corrector.entropy)
+	if err != nil {
+		return Activity{}, err
 	}
 
-	result := *execution
+	event := cloneActivity(target)
+	event.ID = id
+	event.RecordedAt = recordedAt
+	event.Supersedes = target.ID
+	event.CorrectionReason = params.Reason
 
-	return &result
+	if params.ReplacementSummary != nil {
+		event.Summary = *params.ReplacementSummary
+	}
+
+	if err := event.Validate(); err != nil {
+		return Activity{}, fmt.Errorf("%w: %w", ErrEventInvalid, err)
+	}
+
+	return event, nil
+}
+
+func cloneActivity(activity Activity) Activity {
+	if activity.Scope != nil {
+		scope := *activity.Scope
+		activity.Scope = &scope
+	}
+
+	if activity.Properties != nil {
+		properties := *activity.Properties
+		if properties.AuthoredAt != nil {
+			authoredAt := *properties.AuthoredAt
+			properties.AuthoredAt = &authoredAt
+		}
+
+		activity.Properties = &properties
+	}
+
+	if activity.Provenance != nil {
+		provenance := *activity.Provenance
+		activity.Provenance = &provenance
+	}
+
+	activity.References = append([]ActivityReference(nil), activity.References...)
+
+	return activity
 }

@@ -37,9 +37,9 @@ func assertCrossMonthReport(t *testing.T, result ReportResult) {
 		t.Fatalf("report days = %#v", result.Days)
 	}
 
-	septemberRepositories := result.Days[1].Repositories
-	if len(septemberRepositories) != 2 || septemberRepositories[0].Name != "alpha" || septemberRepositories[1].Name != "zeta" {
-		t.Fatalf("September repositories = %#v", septemberRepositories)
+	septemberScopes := result.Days[1].Scopes
+	if len(septemberScopes) != 2 || septemberScopes[0].Name != "alpha" || septemberScopes[1].Name != "zeta" {
+		t.Fatalf("September scopes = %#v", septemberScopes)
 	}
 }
 
@@ -119,7 +119,7 @@ func TestJournalReportTruncatesByCountAndEncodedSize(t *testing.T) {
 	const matchCount = 10
 
 	event := validMilestoneEvent()
-	event.Git.Subject = strings.Repeat("x", 1<<20)
+	event.Summary = strings.Repeat("x", 1<<20)
 
 	events := make([]Event, matchCount)
 	for index := range events {
@@ -152,16 +152,22 @@ func newCrossMonthReportJournal(t *testing.T) *Journal {
 	}
 
 	first := distinctMilestoneEvent(t, 11)
+	first.OccurredAt = time.Date(2026, 8, 31, 21, 30, 0, 0, time.UTC)
 	first.RecordedAt = time.Date(2026, 8, 31, 21, 30, 0, 0, time.UTC)
-	first.Repository = reportRepository("middle")
+	first.ID = nextEventID(t, first.RecordedAt, 11)
+	first.Scope = reportScope("middle")
 
 	second := distinctMilestoneEvent(t, 12)
+	second.OccurredAt = time.Date(2026, 8, 31, 22, 30, 0, 0, time.UTC)
 	second.RecordedAt = time.Date(2026, 8, 31, 22, 30, 0, 0, time.UTC)
-	second.Repository = reportRepository("zeta")
+	second.ID = nextEventID(t, second.RecordedAt, 12)
+	second.Scope = reportScope("zeta")
 
 	third := distinctMilestoneEvent(t, 13)
+	third.OccurredAt = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	third.RecordedAt = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
-	third.Repository = reportRepository("alpha")
+	third.ID = nextEventID(t, third.RecordedAt, 13)
+	third.Scope = reportScope("alpha")
 
 	for _, event := range []Event{first, second, third} {
 		appendJournalEvent(t, journal, event)
@@ -170,11 +176,10 @@ func newCrossMonthReportJournal(t *testing.T) *Journal {
 	return journal
 }
 
-func reportRepository(name string) RepositoryReference {
-	return RepositoryReference{
+func reportScope(name string) *ActivityScope {
+	return &ActivityScope{
+		Type:     ScopeTypeRepository,
 		Name:     name,
-		Root:     "/workspace/" + name,
 		Identity: "https://example.test/team/" + name + ".git",
-		Remote:   "https://example.test/team/" + name + ".git",
 	}
 }

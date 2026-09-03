@@ -2,6 +2,7 @@ package acta
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,15 +25,15 @@ var (
 	ErrJournalCorrupt = errors.New("journal is corrupt")
 )
 
-// MilestoneKey is the durable milestone identity.
-type MilestoneKey struct {
-	RepositoryIdentity string
-	Commit             string
+type naturalKey struct {
+	Type          ActivityType
+	ScopeIdentity string
+	Value         string
 }
 
 // AppendResult reports whether Append published a new event.
 type AppendResult struct {
-	Event    Event
+	Event    Activity
 	Recorded bool
 }
 
@@ -40,13 +41,14 @@ type AppendResult struct {
 type Journal struct {
 	config Config
 
-	mu         sync.RWMutex
-	loaded     bool
-	loadErr    error
-	events     map[EventID]Event
-	milestones map[MilestoneKey]EventID
-	effective  map[MilestoneKey]EventID
-	order      []EventID
+	mu        sync.RWMutex
+	loaded    bool
+	loadErr   error
+	events    map[EventID]Activity
+	roots     map[EventID]EventID
+	effective map[EventID]EventID
+	natural   map[naturalKey]EventID
+	order     []EventID
 }
 
 // NewJournal stores configuration without performing IO.
@@ -98,7 +100,7 @@ func (journal *Journal) Loaded() bool {
 }
 
 // Append validates, publishes, syncs, and indexes one event.
-func (journal *Journal) Append(ctx context.Context, event Event) (AppendResult, error) {
+func (journal *Journal) Append(ctx context.Context, event Activity) (AppendResult, error) {
 	journal.mu.Lock()
 	defer journal.mu.Unlock()
 
@@ -118,46 +120,49 @@ func (journal *Journal) Append(ctx context.Context, event Event) (AppendResult, 
 		return AppendResult{}, err
 	}
 
-	if existing, ok := journal.existingMilestone(event); ok {
+	if existing, ok := journal.existingNaturalEvent(event); ok {
 		return AppendResult{Event: existing, Recorded: false}, nil
 	}
 
-	if _, ok := journal.events[event.ID]; ok {
-		return AppendResult{}, fmt.Errorf("append event: duplicate event ID %q", event.ID)
-	}
-
-	if err := validateEventAgainstIndex(event, journal.events, journal.milestones, journal.effective); err != nil {
+	index := journal.indexView()
+	if err := validateActivityAgainstIndex(event, index); err != nil {
 		return AppendResult{}, err
 	}
 
-	line, err := json.Marshal(event)
+	line, err := canonicalActivityLine(event)
 	if err != nil {
-		return AppendResult{}, fmt.Errorf("encode event: %w", err)
+		return AppendResult{}, err
 	}
-
-	line = append(line, '\n')
 
 	segmentPath := SegmentPath(journal.config.JournalRoot, event.RecordedAt)
 	if err := publishEvent(journal.config, segmentPath, line); err != nil {
 		return AppendResult{}, err
 	}
 
-	addEventToIndex(event, journal.events, journal.milestones, journal.effective, &journal.order)
+	addActivityToIndex(event, index)
+	journal.applyIndex(index)
 
 	return AppendResult{Event: event, Recorded: true}, nil
 }
 
-func (journal *Journal) existingMilestone(event Event) (Event, bool) {
-	if event.Type != EventTypeMilestone {
-		return Event{}, false
+func (journal *Journal) existingNaturalEvent(event Activity) (Activity, bool) {
+	if event.Supersedes != "" {
+		return Activity{}, false
 	}
 
-	existingID, ok := journal.milestones[eventMilestoneKey(event)]
+	key, ok := activityNaturalKey(event)
 	if !ok {
-		return Event{}, false
+		return Activity{}, false
 	}
 
-	return journal.events[existingID], true
+	root, ok := journal.natural[key]
+	if !ok {
+		return Activity{}, false
+	}
+
+	effective := journal.effective[root]
+
+	return journal.events[effective], true
 }
 
 func (journal *Journal) recoverForAppend(ctx context.Context) error {
@@ -176,8 +181,8 @@ func (journal *Journal) recoverForAppend(ctx context.Context) error {
 	return nil
 }
 
-// Event returns one event by ID.
-func (journal *Journal) Event(id EventID) (Event, bool) {
+// Event returns one raw event by ID.
+func (journal *Journal) Event(id EventID) (Activity, bool) {
 	journal.mu.RLock()
 	defer journal.mu.RUnlock()
 
@@ -186,30 +191,22 @@ func (journal *Journal) Event(id EventID) (Event, bool) {
 	return event, ok
 }
 
-// Milestone returns the original milestone for a repository and commit.
-func (journal *Journal) Milestone(key MilestoneKey) (Event, bool) {
+// Effective returns the current effective event for the supplied chain member.
+func (journal *Journal) Effective(id EventID) (Activity, bool) {
 	journal.mu.RLock()
 	defer journal.mu.RUnlock()
 
-	id, ok := journal.milestones[key]
+	root, ok := journal.roots[id]
 	if !ok {
-		return Event{}, false
+		return Activity{}, false
 	}
 
-	return journal.events[id], true
-}
-
-// Effective returns the current effective event for a milestone.
-func (journal *Journal) Effective(key MilestoneKey) (Event, bool) {
-	journal.mu.RLock()
-	defer journal.mu.RUnlock()
-
-	id, ok := journal.effective[key]
+	effectiveID, ok := journal.effective[root]
 	if !ok {
-		return Event{}, false
+		return Activity{}, false
 	}
 
-	return journal.events[id], true
+	return journal.events[effectiveID], true
 }
 
 // Count returns the number of canonical events loaded in memory.
@@ -228,18 +225,20 @@ func SegmentPath(root string, recordedAt time.Time) string {
 }
 
 type journalIndex struct {
-	events     map[EventID]Event
-	milestones map[MilestoneKey]EventID
-	effective  map[MilestoneKey]EventID
-	order      []EventID
+	events    map[EventID]Activity
+	roots     map[EventID]EventID
+	effective map[EventID]EventID
+	natural   map[naturalKey]EventID
+	order     []EventID
 }
 
 func newJournalIndex() *journalIndex {
 	return &journalIndex{
-		events:     make(map[EventID]Event),
-		milestones: make(map[MilestoneKey]EventID),
-		effective:  make(map[MilestoneKey]EventID),
-		order:      make([]EventID, 0),
+		events:    make(map[EventID]Activity),
+		roots:     make(map[EventID]EventID),
+		effective: make(map[EventID]EventID),
+		natural:   make(map[naturalKey]EventID),
+		order:     make([]EventID, 0),
 	}
 }
 
@@ -261,9 +260,20 @@ func rebuildJournalIndex(ctx context.Context, root string) (*journalIndex, error
 
 func (journal *Journal) applyIndex(index *journalIndex) {
 	journal.events = index.events
-	journal.milestones = index.milestones
+	journal.roots = index.roots
 	journal.effective = index.effective
+	journal.natural = index.natural
 	journal.order = index.order
+}
+
+func (journal *Journal) indexView() *journalIndex {
+	return &journalIndex{
+		events:    journal.events,
+		roots:     journal.roots,
+		effective: journal.effective,
+		natural:   journal.natural,
+		order:     journal.order,
+	}
 }
 
 func prepareJournalDirectories(config Config) error {
@@ -337,7 +347,7 @@ func loadSegment(ctx context.Context, root, segmentPath string, index *journalIn
 			return err
 		}
 
-		if err := loadSegmentEvent(root, segmentPath, lineNumber, scanner.Bytes(), index); err != nil {
+		if err := loadSegmentActivity(root, segmentPath, lineNumber, scanner.Bytes(), index); err != nil {
 			return err
 		}
 	}
@@ -349,17 +359,13 @@ func loadSegment(ctx context.Context, root, segmentPath string, index *journalIn
 	return nil
 }
 
-func loadSegmentEvent(root, segmentPath string, lineNumber int, line []byte, index *journalIndex) error {
+func loadSegmentActivity(root, segmentPath string, lineNumber int, line []byte, index *journalIndex) error {
 	if len(line) == 0 {
 		return corruptSegment(segmentPath, lineNumber, "blank line")
 	}
 
-	var event Event
-	if err := json.Unmarshal(line, &event); err != nil {
-		return corruptSegment(segmentPath, lineNumber, "decode event: %v", err)
-	}
-
-	if err := event.Validate(); err != nil {
+	event, err := decodeCanonicalActivity(line)
+	if err != nil {
 		return corruptSegment(segmentPath, lineNumber, "%v", err)
 	}
 
@@ -367,75 +373,142 @@ func loadSegmentEvent(root, segmentPath string, lineNumber int, line []byte, ind
 		return corruptSegment(segmentPath, lineNumber, "event belongs to %q", SegmentPath(root, event.RecordedAt))
 	}
 
-	if _, ok := index.events[event.ID]; ok {
-		return corruptSegment(segmentPath, lineNumber, "duplicate event ID %q", event.ID)
-	}
-
-	if err := validateEventAgainstIndex(event, index.events, index.milestones, index.effective); err != nil {
+	if err := validateActivityAgainstIndex(event, index); err != nil {
 		return corruptSegment(segmentPath, lineNumber, "%v", err)
 	}
 
-	addEventToIndex(event, index.events, index.milestones, index.effective, &index.order)
+	addActivityToIndex(event, index)
 
 	return nil
 }
 
-func validateEventAgainstIndex(event Event, events map[EventID]Event, milestones, effective map[MilestoneKey]EventID) error {
-	key := eventMilestoneKey(event)
+func decodeCanonicalActivity(line []byte) (Activity, error) {
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	decoder.DisallowUnknownFields()
+
+	var event Activity
+	if err := decoder.Decode(&event); err != nil {
+		return Activity{}, fmt.Errorf("decode event: %w", err)
+	}
+
+	if err := requireJSONEnd(decoder); err != nil {
+		return Activity{}, fmt.Errorf("decode event: %w", err)
+	}
+
+	if err := event.Validate(); err != nil {
+		return Activity{}, err
+	}
+
+	return event, nil
+}
+
+func canonicalActivityLine(event Activity) ([]byte, error) {
+	line, err := json.Marshal(event)
+	if err != nil {
+		return nil, fmt.Errorf("encode event: %w", err)
+	}
+
+	return append(line, '\n'), nil
+}
+
+func validateActivityAgainstIndex(event Activity, index *journalIndex) error {
+	if _, ok := index.events[event.ID]; ok {
+		return fmt.Errorf("duplicate event ID %q", event.ID)
+	}
+
+	if event.Supersedes == "" {
+		return validateNewActivityIdentity(event, index)
+	}
+
+	return validateSupersession(event, index)
+}
+
+func validateNewActivityIdentity(event Activity, index *journalIndex) error {
+	key, ok := activityNaturalKey(event)
+	if !ok {
+		return nil
+	}
+
+	if _, exists := index.natural[key]; exists {
+		return fmt.Errorf("duplicate natural key for %s", event.Type)
+	}
+
+	return nil
+}
+
+func validateSupersession(event Activity, index *journalIndex) error {
+	target, ok := index.events[event.Supersedes]
+	if !ok {
+		return fmt.Errorf("correction target %q does not exist", event.Supersedes)
+	}
+
+	root := index.roots[target.ID]
+	if index.effective[root] != target.ID {
+		return fmt.Errorf("%w: %q", ErrCorrectionTargetStale, event.Supersedes)
+	}
+
+	if event.Type != target.Type {
+		return fmt.Errorf("correction type does not match target %q", event.Supersedes)
+	}
+
+	if !sameNaturalIdentity(event, target) {
+		return fmt.Errorf("correction identity does not match target %q", event.Supersedes)
+	}
+
+	return nil
+}
+
+func sameNaturalIdentity(left, right Activity) bool {
+	leftKey, leftOK := activityNaturalKey(left)
+
+	rightKey, rightOK := activityNaturalKey(right)
+	if leftOK || rightOK {
+		return leftOK && rightOK && leftKey == rightKey
+	}
+
+	if left.Type == ActivityTypeWorklog || left.Type == ActivityTypeNote {
+		return true
+	}
+
+	return false
+}
+
+func addActivityToIndex(event Activity, index *journalIndex) {
+	root := event.ID
+	if event.Supersedes != "" {
+		root = index.roots[event.Supersedes]
+	}
+
+	index.events[event.ID] = event
+	index.roots[event.ID] = root
+	index.effective[root] = event.ID
+	index.order = append(index.order, event.ID)
+
+	if key, ok := activityNaturalKey(event); ok {
+		index.natural[key] = root
+	}
+}
+
+func activityNaturalKey(event Activity) (naturalKey, bool) {
+	if event.Properties == nil {
+		return naturalKey{}, false
+	}
+
+	scopeIdentity := ""
+	if event.Scope != nil {
+		scopeIdentity = event.Scope.Identity
+	}
+
 	switch event.Type {
-	case EventTypeMilestone:
-		if _, ok := milestones[key]; ok {
-			return fmt.Errorf("duplicate milestone key for repository %q and commit %q", key.RepositoryIdentity, key.Commit)
-		}
-	case EventTypeCorrection:
-		target, ok := events[event.TargetID]
-		if !ok {
-			return fmt.Errorf("correction target %q does not exist", event.TargetID)
-		}
+	case ActivityTypeCommit:
+		return naturalKey{Type: event.Type, ScopeIdentity: scopeIdentity, Value: event.Properties.ObjectID}, true
+	case ActivityTypePullRequest:
+		value := fmt.Sprintf("%s\x00%s\x00%d\x00%s", event.Properties.Forge, event.Properties.Repository, event.Properties.Number, event.Properties.Action)
 
-		targetKey := eventMilestoneKey(target)
-		if key != targetKey {
-			return fmt.Errorf("correction evidence does not match target %q", event.TargetID)
-		}
-
-		if effective[targetKey] != event.TargetID {
-			return fmt.Errorf("%w: %q", ErrCorrectionTargetStale, event.TargetID)
-		}
-
-		if !sameCorrectionSnapshot(event, target) {
-			return fmt.Errorf("correction snapshot does not match target %q", event.TargetID)
-		}
+		return naturalKey{Type: event.Type, ScopeIdentity: scopeIdentity, Value: value}, true
+	default:
+		return naturalKey{}, false
 	}
-
-	return nil
-}
-
-func addEventToIndex(event Event, events map[EventID]Event, milestones, effective map[MilestoneKey]EventID, order *[]EventID) {
-	events[event.ID] = event
-	*order = append(*order, event.ID)
-
-	key := eventMilestoneKey(event)
-	if event.Type == EventTypeMilestone {
-		milestones[key] = event.ID
-	}
-
-	effective[key] = event.ID
-}
-
-func eventMilestoneKey(event Event) MilestoneKey {
-	return MilestoneKey{RepositoryIdentity: event.Repository.Identity, Commit: event.Git.Commit}
-}
-
-func sameCorrectionSnapshot(correction, target Event) bool {
-	if correction.Repository != target.Repository || correction.Git != target.Git {
-		return false
-	}
-
-	if correction.Execution == nil || target.Execution == nil {
-		return correction.Execution == nil && target.Execution == nil
-	}
-
-	return *correction.Execution == *target.Execution
 }
 
 func appendEventLine(segmentPath string, line []byte) error {

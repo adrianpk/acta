@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,33 +32,35 @@ const (
 	QueryDescending QueryOrder = "descending"
 )
 
-// Query selects a bounded effective-event view.
+// Query selects a bounded effective-activity view.
 type Query struct {
-	EventTypes    []EventType `json:"event_types,omitempty"`
-	Repository    string      `json:"repository,omitempty"`
-	Commit        string      `json:"commit,omitempty"`
-	Harness       string      `json:"harness,omitempty"`
-	Model         string      `json:"model,omitempty"`
-	Text          string      `json:"text,omitempty"`
-	RecordedFrom  *time.Time  `json:"recorded_from,omitempty"`
-	RecordedTo    *time.Time  `json:"recorded_to,omitempty"`
-	AuthoredFrom  *time.Time  `json:"authored_from,omitempty"`
-	AuthoredTo    *time.Time  `json:"authored_to,omitempty"`
-	CommittedFrom *time.Time  `json:"committed_from,omitempty"`
-	CommittedTo   *time.Time  `json:"committed_to,omitempty"`
-	Limit         int         `json:"limit"`
-	Order         QueryOrder  `json:"order"`
+	Types        []ActivityType `json:"types,omitempty"`
+	Scope        string         `json:"scope,omitempty"`
+	Commit       string         `json:"commit,omitempty"`
+	PullRequest  string         `json:"pull_request,omitempty"`
+	Harness      string         `json:"harness,omitempty"`
+	Model        string         `json:"model,omitempty"`
+	Text         string         `json:"text,omitempty"`
+	Source       ProvenanceType `json:"source,omitempty"`
+	OccurredFrom *time.Time     `json:"occurred_from,omitempty"`
+	OccurredTo   *time.Time     `json:"occurred_to,omitempty"`
+	RecordedFrom *time.Time     `json:"recorded_from,omitempty"`
+	RecordedTo   *time.Time     `json:"recorded_to,omitempty"`
+	DurationMin  int            `json:"duration_min,omitempty"`
+	DurationMax  int            `json:"duration_max,omitempty"`
+	Limit        int            `json:"limit"`
+	Order        QueryOrder     `json:"order"`
 }
 
-// QueryResult contains bounded effective events and truncation metadata.
+// QueryResult contains bounded effective activities and truncation metadata.
 type QueryResult struct {
-	Query         Query   `json:"query"`
-	Events        []Event `json:"events"`
-	ReturnedCount int     `json:"returned_count"`
-	Truncated     bool    `json:"truncated"`
+	Query         Query      `json:"query"`
+	Events        []Activity `json:"events"`
+	ReturnedCount int        `json:"returned_count"`
+	Truncated     bool       `json:"truncated"`
 }
 
-// Search returns effective events matching one normalized bounded query.
+// Search returns effective activities matching one normalized bounded query.
 func (journal *Journal) Search(ctx context.Context, query Query) (QueryResult, error) {
 	normalized, err := normalizeQuery(query)
 	if err != nil {
@@ -76,13 +79,13 @@ func (journal *Journal) Search(ctx context.Context, query Query) (QueryResult, e
 		return QueryResult{}, err
 	}
 
-	sortQueryEvents(matches, normalized.Order)
+	sortQueryActivities(matches, normalized.Order)
 
 	return boundedQueryResult(normalized, matches), nil
 }
 
-func (journal *Journal) queryMatches(ctx context.Context, query Query) ([]Event, error) {
-	matches := make([]Event, 0)
+func (journal *Journal) queryMatches(ctx context.Context, query Query) ([]Activity, error) {
+	matches := make([]Activity, 0)
 	commits := make(map[string]struct{})
 
 	for _, id := range journal.order {
@@ -91,13 +94,15 @@ func (journal *Journal) queryMatches(ctx context.Context, query Query) ([]Event,
 		}
 
 		event := journal.events[id]
-		if journal.effective[eventMilestoneKey(event)] != id || !eventMatchesQuery(event, query) {
+
+		root := journal.roots[id]
+		if journal.effective[root] != id || !activityMatchesQuery(event, query) {
 			continue
 		}
 
 		matches = append(matches, event)
-		if query.Commit != "" {
-			commits[event.Git.Commit] = struct{}{}
+		if query.Commit != "" && event.Properties != nil {
+			commits[event.Properties.ObjectID] = struct{}{}
 		}
 	}
 
@@ -109,8 +114,9 @@ func (journal *Journal) queryMatches(ctx context.Context, query Query) ([]Event,
 }
 
 func normalizeQuery(query Query) (Query, error) {
-	query.Repository = strings.TrimSpace(query.Repository)
+	query.Scope = strings.TrimSpace(query.Scope)
 	query.Commit = strings.ToLower(strings.TrimSpace(query.Commit))
+	query.PullRequest = normalizeQueryText(query.PullRequest)
 	query.Harness = normalizeQueryText(query.Harness)
 	query.Model = normalizeQueryText(query.Model)
 	query.Text = normalizeQueryText(query.Text)
@@ -131,53 +137,69 @@ func normalizeQuery(query Query) (Query, error) {
 		return Query{}, fmt.Errorf("%w: unsupported order %q", ErrQueryInvalid, query.Order)
 	}
 
-	if err := validateCommitPrefix(query.Commit); err != nil {
-		return Query{}, err
-	}
-
-	if err := normalizeEventTypes(&query); err != nil {
-		return Query{}, err
-	}
-
-	normalizeQueryTimes(&query)
-
-	if err := validateQueryRanges(query); err != nil {
+	if err := normalizeQueryFilters(&query); err != nil {
 		return Query{}, err
 	}
 
 	return query, nil
 }
 
-func normalizeEventTypes(query *Query) error {
-	seen := make(map[EventType]struct{})
+func normalizeQueryFilters(query *Query) error {
+	if err := validateCommitPrefix(query.Commit); err != nil {
+		return err
+	}
 
-	for _, eventType := range query.EventTypes {
-		if eventType != EventTypeMilestone && eventType != EventTypeCorrection {
-			return fmt.Errorf("%w: unsupported event type %q", ErrQueryInvalid, eventType)
+	if err := normalizeActivityTypes(query); err != nil {
+		return err
+	}
+
+	if query.Source != "" && !query.Source.Valid() {
+		return fmt.Errorf("%w: unsupported source %q", ErrQueryInvalid, query.Source)
+	}
+
+	normalizeQueryTimes(query)
+
+	return validateQueryRanges(*query)
+}
+
+func normalizeActivityTypes(query *Query) error {
+	seen := make(map[ActivityType]struct{})
+
+	for _, activityType := range query.Types {
+		if !activityType.Valid() {
+			return fmt.Errorf("%w: unsupported activity type %q", ErrQueryInvalid, activityType)
 		}
 
-		seen[eventType] = struct{}{}
+		seen[activityType] = struct{}{}
 	}
 
-	query.EventTypes = query.EventTypes[:0]
-	for eventType := range seen {
-		query.EventTypes = append(query.EventTypes, eventType)
+	query.Types = query.Types[:0]
+	for activityType := range seen {
+		query.Types = append(query.Types, activityType)
 	}
 
-	sort.Slice(query.EventTypes, func(left, right int) bool {
-		return query.EventTypes[left] < query.EventTypes[right]
+	sort.Slice(query.Types, func(left, right int) bool {
+		return query.Types[left] < query.Types[right]
 	})
 
 	return nil
 }
 
+// Valid reports whether the activity type is canonical.
+func (activityType ActivityType) Valid() bool {
+	switch activityType {
+	case ActivityTypeCommit, ActivityTypePullRequest, ActivityTypeWorklog, ActivityTypeNote:
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeQueryTimes(query *Query) {
+	query.OccurredFrom = utcTimePointer(query.OccurredFrom)
+	query.OccurredTo = utcTimePointer(query.OccurredTo)
 	query.RecordedFrom = utcTimePointer(query.RecordedFrom)
 	query.RecordedTo = utcTimePointer(query.RecordedTo)
-	query.AuthoredFrom = utcTimePointer(query.AuthoredFrom)
-	query.AuthoredTo = utcTimePointer(query.AuthoredTo)
-	query.CommittedFrom = utcTimePointer(query.CommittedFrom)
-	query.CommittedTo = utcTimePointer(query.CommittedTo)
 }
 
 func utcTimePointer(value *time.Time) *time.Time {
@@ -191,16 +213,20 @@ func utcTimePointer(value *time.Time) *time.Time {
 }
 
 func validateQueryRanges(query Query) error {
+	if invalidTimeRange(query.OccurredFrom, query.OccurredTo) {
+		return fmt.Errorf("%w: occurred range is empty or reversed", ErrQueryInvalid)
+	}
+
 	if invalidTimeRange(query.RecordedFrom, query.RecordedTo) {
 		return fmt.Errorf("%w: recorded range is empty or reversed", ErrQueryInvalid)
 	}
 
-	if invalidTimeRange(query.AuthoredFrom, query.AuthoredTo) {
-		return fmt.Errorf("%w: authored range is empty or reversed", ErrQueryInvalid)
+	if query.DurationMin < 0 || query.DurationMax < 0 {
+		return fmt.Errorf("%w: duration bounds must not be negative", ErrQueryInvalid)
 	}
 
-	if invalidTimeRange(query.CommittedFrom, query.CommittedTo) {
-		return fmt.Errorf("%w: committed range is empty or reversed", ErrQueryInvalid)
+	if query.DurationMin != 0 && query.DurationMax != 0 && query.DurationMin > query.DurationMax {
+		return fmt.Errorf("%w: duration range is reversed", ErrQueryInvalid)
 	}
 
 	return nil
@@ -228,24 +254,25 @@ func validateCommitPrefix(commit string) error {
 	return nil
 }
 
-func eventMatchesQuery(event Event, query Query) bool {
-	return matchesEventType(event, query.EventTypes) &&
-		matchesRepository(event, query.Repository) &&
-		strings.HasPrefix(event.Git.Commit, query.Commit) &&
-		matchesExecution(event, query.Harness, query.Model) &&
+func activityMatchesQuery(event Activity, query Query) bool {
+	return matchesActivityType(event, query.Types) &&
+		matchesScope(event, query.Scope) &&
+		matchesCommit(event, query.Commit) &&
+		matchesPullRequest(event, query.PullRequest) &&
+		matchesProvenance(event, query) &&
+		matchesDuration(event, query.DurationMin, query.DurationMax) &&
 		matchesText(event, query.Text) &&
-		withinTimeRange(event.RecordedAt, query.RecordedFrom, query.RecordedTo) &&
-		withinTimeRange(event.Git.AuthoredAt, query.AuthoredFrom, query.AuthoredTo) &&
-		withinTimeRange(event.Git.CommittedAt, query.CommittedFrom, query.CommittedTo)
+		withinTimeRange(event.OccurredAt, query.OccurredFrom, query.OccurredTo) &&
+		withinTimeRange(event.RecordedAt, query.RecordedFrom, query.RecordedTo)
 }
 
-func matchesEventType(event Event, eventTypes []EventType) bool {
-	if len(eventTypes) == 0 {
+func matchesActivityType(event Activity, activityTypes []ActivityType) bool {
+	if len(activityTypes) == 0 {
 		return true
 	}
 
-	for _, eventType := range eventTypes {
-		if event.Type == eventType {
+	for _, activityType := range activityTypes {
+		if event.Type == activityType {
 			return true
 		}
 	}
@@ -253,49 +280,107 @@ func matchesEventType(event Event, eventTypes []EventType) bool {
 	return false
 }
 
-func matchesRepository(event Event, repository string) bool {
-	if repository == "" {
+func matchesScope(event Activity, scope string) bool {
+	if scope == "" {
 		return true
 	}
 
-	return strings.EqualFold(event.Repository.Name, repository) || strings.EqualFold(event.Repository.Identity, repository)
+	return event.Scope != nil && (strings.EqualFold(event.Scope.Name, scope) || strings.EqualFold(event.Scope.Identity, scope))
 }
 
-func matchesExecution(event Event, harness, model string) bool {
-	if harness == "" && model == "" {
+func matchesCommit(event Activity, commit string) bool {
+	if commit == "" {
 		return true
 	}
 
-	if event.Execution == nil {
+	return event.Type == ActivityTypeCommit && event.Properties != nil && strings.HasPrefix(event.Properties.ObjectID, commit)
+}
+
+func matchesPullRequest(event Activity, pullRequest string) bool {
+	if pullRequest == "" {
+		return true
+	}
+
+	if event.Type != ActivityTypePullRequest || event.Properties == nil {
 		return false
 	}
 
-	return (harness == "" || normalizeQueryText(event.Execution.Harness) == harness) &&
-		(model == "" || normalizeQueryText(event.Execution.Model) == model)
+	return strings.Contains(normalizeQueryText(pullRequestIdentifier(*event.Properties)), pullRequest)
 }
 
-func matchesText(event Event, text string) bool {
+func matchesProvenance(event Activity, query Query) bool {
+	if query.Source == "" && query.Harness == "" && query.Model == "" {
+		return true
+	}
+
+	if event.Provenance == nil {
+		return false
+	}
+
+	return (query.Source == "" || event.Provenance.Type == query.Source) &&
+		(query.Harness == "" || normalizeQueryText(event.Provenance.Harness) == query.Harness) &&
+		(query.Model == "" || normalizeQueryText(event.Provenance.Model) == query.Model)
+}
+
+func matchesDuration(event Activity, minimum, maximum int) bool {
+	if minimum == 0 && maximum == 0 {
+		return true
+	}
+
+	if event.Type != ActivityTypeWorklog || event.Properties == nil {
+		return false
+	}
+
+	duration := event.Properties.DurationMinutes
+
+	return (minimum == 0 || duration >= minimum) && (maximum == 0 || duration <= maximum)
+}
+
+func matchesText(event Activity, text string) bool {
 	if text == "" {
 		return true
 	}
 
-	values := []string{
-		event.Repository.Name,
-		event.Git.Subject,
-		event.Note,
-		event.Reason,
-	}
-	if event.Execution != nil {
-		values = append(values, event.Execution.Harness, event.Execution.Model)
-	}
-
-	for _, value := range values {
+	for _, value := range activitySearchValues(event) {
 		if strings.Contains(normalizeQueryText(value), text) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func activitySearchValues(event Activity) []string {
+	values := []string{event.Summary, event.CorrectionReason}
+	if event.Scope != nil {
+		values = append(values, event.Scope.Name, event.Scope.Identity)
+	}
+
+	if event.Properties != nil {
+		values = append(values, propertySearchValues(*event.Properties)...)
+	}
+
+	for _, reference := range event.References {
+		values = append(values, reference.ScopeIdentity, reference.ObjectID, reference.URL)
+	}
+
+	if event.Provenance != nil {
+		values = append(values, event.Provenance.Harness, event.Provenance.Model)
+	}
+
+	return values
+}
+
+func propertySearchValues(properties ActivityProperties) []string {
+	return []string{
+		properties.ObjectID,
+		properties.Subject,
+		properties.Forge,
+		properties.Repository,
+		strconv.Itoa(properties.Number),
+		string(properties.Action),
+		properties.URL,
+	}
 }
 
 func withinTimeRange(value time.Time, from, to *time.Time) bool {
@@ -306,26 +391,31 @@ func normalizeQueryText(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func sortQueryEvents(events []Event, order QueryOrder) {
+func sortQueryActivities(events []Activity, order QueryOrder) {
 	sort.Slice(events, func(left, right int) bool {
-		if events[left].RecordedAt.Equal(events[right].RecordedAt) {
-			if order == QueryAscending {
-				return events[left].ID < events[right].ID
-			}
-
-			return events[left].ID > events[right].ID
-		}
-
+		comparison := compareActivityTimes(events[left], events[right])
 		if order == QueryAscending {
-			return events[left].RecordedAt.Before(events[right].RecordedAt)
+			return comparison < 0
 		}
 
-		return events[left].RecordedAt.After(events[right].RecordedAt)
+		return comparison > 0
 	})
 }
 
-func boundedQueryResult(query Query, matches []Event) QueryResult {
-	result := QueryResult{Query: query, Events: make([]Event, 0, min(query.Limit, len(matches)))}
+func compareActivityTimes(left, right Activity) int {
+	if comparison := left.OccurredAt.Compare(right.OccurredAt); comparison != 0 {
+		return comparison
+	}
+
+	if comparison := left.RecordedAt.Compare(right.RecordedAt); comparison != 0 {
+		return comparison
+	}
+
+	return strings.Compare(string(left.ID), string(right.ID))
+}
+
+func boundedQueryResult(query Query, matches []Activity) QueryResult {
+	result := QueryResult{Query: query, Events: make([]Activity, 0, min(query.Limit, len(matches)))}
 
 	for index, event := range matches {
 		if index >= query.Limit {
@@ -335,7 +425,7 @@ func boundedQueryResult(query Query, matches []Event) QueryResult {
 		}
 
 		candidate := result
-		candidate.Events = append(append([]Event(nil), result.Events...), event)
+		candidate.Events = append(append([]Activity(nil), result.Events...), event)
 		candidate.ReturnedCount = len(candidate.Events)
 		candidate.Truncated = index+1 < len(matches)
 
@@ -358,4 +448,8 @@ func queryResponseFits(result QueryResult) bool {
 	encoded, err := json.Marshal(response)
 
 	return err == nil && len(encoded)+1 <= MaxResponseSize
+}
+
+func pullRequestIdentifier(properties ActivityProperties) string {
+	return fmt.Sprintf("%s/%s#%d:%s", properties.Forge, properties.Repository, properties.Number, properties.Action)
 }

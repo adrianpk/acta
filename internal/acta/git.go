@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -31,12 +33,10 @@ func (inspector *GitInspector) Inspect(ctx context.Context, directory string) (R
 		return RepositoryEvidence{}, err
 	}
 
-	remote, err := inspectOptionalGitValue(ctx, root, "config", "--get", "remote.origin.url")
+	repository, err := inspectRepositoryReference(ctx, root)
 	if err != nil {
 		return RepositoryEvidence{}, err
 	}
-
-	repository := repositoryReferenceForGit(root, remote)
 
 	commit, err := inspectCommit(ctx, root)
 	if err != nil {
@@ -56,15 +56,49 @@ func (inspector *GitInspector) Inspect(ctx context.Context, directory string) (R
 	commit.Branch = branch
 	commit.WorktreeClean = len(status) == 0
 
-	if err := repository.Validate(); err != nil {
-		return RepositoryEvidence{}, err
-	}
-
 	if err := commit.Validate(); err != nil {
 		return RepositoryEvidence{}, err
 	}
 
 	return RepositoryEvidence{Repository: repository, Git: commit}, nil
+}
+
+func inspectRepositoryReference(ctx context.Context, root string) (RepositoryReference, error) {
+	remote, err := inspectOptionalGitValue(ctx, root, "config", "--get", "remote.origin.url")
+	if err != nil {
+		return RepositoryReference{}, err
+	}
+
+	rootCommit := ""
+	if _, normalizeErr := NormalizeRepositoryRemote(remote); remote == "" || normalizeErr != nil {
+		rootCommit, err = inspectRootCommit(ctx, root)
+		if err != nil {
+			return RepositoryReference{}, err
+		}
+	}
+
+	reference := repositoryReferenceForGit(root, remote, rootCommit)
+	if err := reference.Validate(); err != nil {
+		return RepositoryReference{}, err
+	}
+
+	return reference, nil
+}
+
+func inspectRootCommit(ctx context.Context, root string) (string, error) {
+	output, err := runGit(ctx, root, "rev-list", "--max-parents=0", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("inspect Git root commit: %w", err)
+	}
+
+	roots := strings.Fields(string(output))
+	if len(roots) == 0 {
+		return "", fmt.Errorf("inspect Git root commit: no root commit")
+	}
+
+	sort.Strings(roots)
+
+	return roots[0], nil
 }
 
 func inspectRepositoryRoot(ctx context.Context, directory string) (string, error) {
@@ -130,18 +164,21 @@ func parseGitTime(name, value string) (time.Time, error) {
 	return parsed.UTC(), nil
 }
 
-func repositoryReferenceForGit(root, remote string) RepositoryReference {
+func repositoryReferenceForGit(root, remote, rootCommit string) RepositoryReference {
 	reference, err := NewRepositoryReference(root, remote)
-	if err == nil {
+	if err == nil && remote != "" {
 		return reference
 	}
 
-	reference, localErr := NewRepositoryReference(root, "")
-	if localErr != nil {
-		return RepositoryReference{Name: filepath.Base(root), Root: root}
+	if validObjectID(rootCommit) {
+		return RepositoryReference{
+			Name:     filepath.Base(root),
+			Root:     root,
+			Identity: "git-root:" + rootCommit,
+		}
 	}
 
-	return reference
+	return RepositoryReference{Name: filepath.Base(root), Root: root}
 }
 
 func inspectOptionalGitValue(ctx context.Context, root string, arguments ...string) (string, error) {

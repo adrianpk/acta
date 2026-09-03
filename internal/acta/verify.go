@@ -133,7 +133,7 @@ func (verifier *Verifier) indexBefore(segmentPath string) *journalIndex {
 			continue
 		}
 
-		addEventToIndex(event, index.events, index.milestones, index.effective, &index.order)
+		addActivityToIndex(event, index)
 	}
 
 	return index
@@ -240,28 +240,20 @@ func verifyLine(root, segmentPath string, lineNumber int, byteOffset int64, fram
 		return integrityFailure(segmentPath, lineNumber, byteOffset+invalidUTF8Offset(line), "event is not valid UTF-8")
 	}
 
-	var event Event
-	if err := json.Unmarshal(line, &event); err != nil {
+	event, err := decodeCanonicalActivity(line)
+	if err != nil {
 		return integrityFailure(segmentPath, lineNumber, byteOffset+jsonErrorOffset(err), "decode event: %v", err)
-	}
-
-	if err := event.Validate(); err != nil {
-		return integrityFailure(segmentPath, lineNumber, byteOffset, "%v", err)
 	}
 
 	if SegmentPath(root, event.RecordedAt) != segmentPath {
 		return integrityFailure(segmentPath, lineNumber, byteOffset, "event belongs to %q", SegmentPath(root, event.RecordedAt))
 	}
 
-	if _, ok := index.events[event.ID]; ok {
-		return integrityFailure(segmentPath, lineNumber, byteOffset, "duplicate event ID %q", event.ID)
-	}
-
-	if err := validateEventAgainstIndex(event, index.events, index.milestones, index.effective); err != nil {
+	if err := validateActivityAgainstIndex(event, index); err != nil {
 		return integrityFailure(segmentPath, lineNumber, byteOffset, "%v", err)
 	}
 
-	addEventToIndex(event, index.events, index.milestones, index.effective, &index.order)
+	addActivityToIndex(event, index)
 
 	return nil
 }

@@ -15,12 +15,13 @@ const reportDateLayout = "2006-01-02"
 // ErrReportInvalid identifies an invalid report interval or timezone.
 var ErrReportInvalid = errors.New("report is invalid")
 
-// ReportParams selects an explicit local-calendar recording interval.
+// ReportParams selects an explicit local-calendar occurrence interval.
 type ReportParams struct {
-	From     string `json:"from"`
-	To       string `json:"to"`
-	Timezone string `json:"timezone,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	From     string         `json:"from"`
+	To       string         `json:"to"`
+	Timezone string         `json:"timezone,omitempty"`
+	Types    []ActivityType `json:"types,omitempty"`
+	Limit    int            `json:"limit,omitempty"`
 }
 
 // ReportInterval describes the effective local-calendar interval.
@@ -30,25 +31,31 @@ type ReportInterval struct {
 	Timezone string `json:"timezone"`
 }
 
-// ReportRepository groups effective events for one repository.
-type ReportRepository struct {
-	Name     string  `json:"name"`
-	Identity string  `json:"identity"`
-	Events   []Event `json:"events"`
+// ReportScope groups effective activities for one scope.
+type ReportScope struct {
+	Name           string     `json:"name"`
+	Identity       string     `json:"identity,omitempty"`
+	Events         []Activity `json:"events"`
+	EventCount     int        `json:"event_count"`
+	WorklogMinutes int        `json:"worklog_minutes"`
 }
 
-// ReportDay groups repositories by local recording date.
+// ReportDay groups scopes by local occurrence date.
 type ReportDay struct {
-	Date         string             `json:"date"`
-	Repositories []ReportRepository `json:"repositories"`
+	Date           string        `json:"date"`
+	Scopes         []ReportScope `json:"scopes"`
+	EventCount     int           `json:"event_count"`
+	WorklogMinutes int           `json:"worklog_minutes"`
 }
 
-// ReportResult contains one bounded grouped chronicle report.
+// ReportResult contains one bounded grouped activity report.
 type ReportResult struct {
-	Interval      ReportInterval `json:"interval"`
-	Days          []ReportDay    `json:"days"`
-	ReturnedCount int            `json:"returned_count"`
-	Truncated     bool           `json:"truncated"`
+	Interval       ReportInterval `json:"interval"`
+	Days           []ReportDay    `json:"days"`
+	ReturnedCount  int            `json:"returned_count"`
+	EventCount     int            `json:"event_count"`
+	WorklogMinutes int            `json:"worklog_minutes"`
+	Truncated      bool           `json:"truncated"`
 }
 
 type normalizedReport struct {
@@ -56,10 +63,11 @@ type normalizedReport struct {
 	location *time.Location
 	from     time.Time
 	to       time.Time
+	types    []ActivityType
 	limit    int
 }
 
-// Report returns effective events grouped by local date and repository.
+// Report returns effective activities grouped by local date and scope.
 func (journal *Journal) Report(ctx context.Context, params ReportParams) (ReportResult, error) {
 	normalized, err := normalizeReport(params)
 	if err != nil {
@@ -67,8 +75,9 @@ func (journal *Journal) Report(ctx context.Context, params ReportParams) (Report
 	}
 
 	queryResult, err := journal.Search(ctx, Query{
-		RecordedFrom: &normalized.from,
-		RecordedTo:   &normalized.to,
+		Types:        normalized.types,
+		OccurredFrom: &normalized.from,
+		OccurredTo:   &normalized.to,
 		Limit:        normalized.limit,
 		Order:        QueryAscending,
 	})
@@ -99,13 +108,14 @@ func normalizeReport(params ReportParams) (normalizedReport, error) {
 		return normalizedReport{}, fmt.Errorf("%w: from must be before to", ErrReportInvalid)
 	}
 
-	limit := params.Limit
-	if limit == 0 {
-		limit = maximumQueryLimit
+	types, err := normalizedReportTypes(params.Types)
+	if err != nil {
+		return normalizedReport{}, err
 	}
 
-	if limit < 1 || limit > maximumQueryLimit {
-		return normalizedReport{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrReportInvalid, maximumQueryLimit)
+	limit, err := normalizedReportLimit(params.Limit)
+	if err != nil {
+		return normalizedReport{}, err
 	}
 
 	return normalizedReport{
@@ -117,8 +127,30 @@ func normalizeReport(params ReportParams) (normalizedReport, error) {
 		location: location,
 		from:     from.UTC(),
 		to:       to.UTC(),
+		types:    types,
 		limit:    limit,
 	}, nil
+}
+
+func normalizedReportTypes(types []ActivityType) ([]ActivityType, error) {
+	query, err := normalizeQuery(Query{Types: types})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrReportInvalid, err)
+	}
+
+	return query.Types, nil
+}
+
+func normalizedReportLimit(limit int) (int, error) {
+	if limit == 0 {
+		return maximumQueryLimit, nil
+	}
+
+	if limit < 1 || limit > maximumQueryLimit {
+		return 0, fmt.Errorf("%w: limit must be between 1 and %d", ErrReportInvalid, maximumQueryLimit)
+	}
+
+	return limit, nil
 }
 
 func reportLocation(name string) (*time.Location, error) {
@@ -148,7 +180,7 @@ func parseReportDate(name, value string, location *time.Location) (time.Time, er
 	return parsed, nil
 }
 
-func boundedReportResult(report normalizedReport, events []Event, sourceTruncated bool) ReportResult {
+func boundedReportResult(report normalizedReport, events []Activity, sourceTruncated bool) ReportResult {
 	result := buildReportResult(report, events, sourceTruncated)
 	if reportResponseFits(result) {
 		return result
@@ -171,65 +203,96 @@ func boundedReportResult(report normalizedReport, events []Event, sourceTruncate
 	return buildReportResult(report, events[:low], true)
 }
 
-func buildReportResult(report normalizedReport, events []Event, truncated bool) ReportResult {
+func buildReportResult(report normalizedReport, events []Activity, truncated bool) ReportResult {
 	result := ReportResult{
 		Interval:      report.interval,
-		Days:          groupReportEvents(events, report.location),
+		Days:          groupReportActivities(events, report.location),
 		ReturnedCount: len(events),
+		EventCount:    len(events),
 		Truncated:     truncated,
+	}
+	for _, event := range events {
+		result.WorklogMinutes += activityDuration(event)
 	}
 
 	return result
 }
 
-func groupReportEvents(events []Event, location *time.Location) []ReportDay {
+func groupReportActivities(events []Activity, location *time.Location) []ReportDay {
 	days := make([]ReportDay, 0)
 	dayIndexes := make(map[string]int)
-	repositoryIndexes := make(map[string]map[string]int)
+	scopeIndexes := make(map[string]map[string]int)
 
 	for _, event := range events {
-		date := event.RecordedAt.In(location).Format(reportDateLayout)
-
-		dayIndex, ok := dayIndexes[date]
-		if !ok {
-			dayIndex = len(days)
-			dayIndexes[date] = dayIndex
-			repositoryIndexes[date] = make(map[string]int)
-			days = append(days, ReportDay{Date: date, Repositories: make([]ReportRepository, 0)})
-		}
-
-		repositoryKey := event.Repository.Name + "\x00" + event.Repository.Identity
-
-		repositoryIndex, ok := repositoryIndexes[date][repositoryKey]
-		if !ok {
-			repositoryIndex = len(days[dayIndex].Repositories)
-			repositoryIndexes[date][repositoryKey] = repositoryIndex
-
-			days[dayIndex].Repositories = append(days[dayIndex].Repositories, ReportRepository{
-				Name:     event.Repository.Name,
-				Identity: event.Repository.Identity,
-				Events:   make([]Event, 0),
-			})
-		}
-
-		repository := &days[dayIndex].Repositories[repositoryIndex]
-		repository.Events = append(repository.Events, event)
+		date := event.OccurredAt.In(location).Format(reportDateLayout)
+		dayIndex := ensureReportDay(&days, dayIndexes, scopeIndexes, date)
+		addReportActivity(&days[dayIndex], scopeIndexes[date], event)
 	}
 
 	for index := range days {
-		sort.Slice(days[index].Repositories, func(left, right int) bool {
-			leftRepository := days[index].Repositories[left]
-			rightRepository := days[index].Repositories[right]
+		sort.Slice(days[index].Scopes, func(left, right int) bool {
+			leftScope := days[index].Scopes[left]
+			rightScope := days[index].Scopes[right]
 
-			if leftRepository.Name == rightRepository.Name {
-				return leftRepository.Identity < rightRepository.Identity
+			if leftScope.Name == rightScope.Name {
+				return leftScope.Identity < rightScope.Identity
 			}
 
-			return leftRepository.Name < rightRepository.Name
+			return leftScope.Name < rightScope.Name
 		})
 	}
 
 	return days
+}
+
+func ensureReportDay(days *[]ReportDay, dayIndexes map[string]int, scopeIndexes map[string]map[string]int, date string) int {
+	if index, ok := dayIndexes[date]; ok {
+		return index
+	}
+
+	index := len(*days)
+	dayIndexes[date] = index
+	scopeIndexes[date] = make(map[string]int)
+	*days = append(*days, ReportDay{Date: date, Scopes: make([]ReportScope, 0)})
+
+	return index
+}
+
+func addReportActivity(day *ReportDay, indexes map[string]int, event Activity) {
+	name, identity := activityReportScope(event)
+	key := name + "\x00" + identity
+
+	index, ok := indexes[key]
+	if !ok {
+		index = len(day.Scopes)
+		indexes[key] = index
+
+		day.Scopes = append(day.Scopes, ReportScope{Name: name, Identity: identity, Events: make([]Activity, 0)})
+	}
+
+	duration := activityDuration(event)
+	scope := &day.Scopes[index]
+	scope.Events = append(scope.Events, event)
+	scope.EventCount++
+	scope.WorklogMinutes += duration
+	day.EventCount++
+	day.WorklogMinutes += duration
+}
+
+func activityReportScope(event Activity) (string, string) {
+	if event.Scope == nil {
+		return "Unscoped", ""
+	}
+
+	return event.Scope.Name, event.Scope.Identity
+}
+
+func activityDuration(event Activity) int {
+	if event.Type != ActivityTypeWorklog || event.Properties == nil {
+		return 0
+	}
+
+	return event.Properties.DurationMinutes
 }
 
 func reportResponseFits(result ReportResult) bool {

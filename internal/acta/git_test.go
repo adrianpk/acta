@@ -97,8 +97,7 @@ func TestGitInspectorSupportsDetachedHeadAndLocalIdentity(t *testing.T) {
 		t.Fatalf("branch = %q, want empty", evidence.Git.Branch)
 	}
 
-	wantIdentity := "file://" + filepath.ToSlash(root)
-	if evidence.Repository.Identity != wantIdentity || evidence.Repository.Remote != "" {
+	if !strings.HasPrefix(evidence.Repository.Identity, "git-root:") || evidence.Repository.Remote != "" {
 		t.Fatalf("repository = %#v", evidence.Repository)
 	}
 }
@@ -114,7 +113,7 @@ func TestGitInspectorFallsBackFromUnusableRemote(t *testing.T) {
 		t.Fatalf("Inspect() error = %v", err)
 	}
 
-	if evidence.Repository.Remote != "" || !strings.HasPrefix(evidence.Repository.Identity, "file://") {
+	if evidence.Repository.Remote != "" || !strings.HasPrefix(evidence.Repository.Identity, "git-root:") {
 		t.Fatalf("repository = %#v", evidence.Repository)
 	}
 }

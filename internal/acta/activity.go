@@ -171,12 +171,21 @@ func (activity Activity) validateCommon() error {
 		return fmt.Errorf("validate activity ID: %w", err)
 	}
 
+	idMilliseconds, err := activity.ID.timestampMilliseconds()
+	if err != nil {
+		return fmt.Errorf("validate activity ID timestamp: %w", err)
+	}
+
 	if err := validateUTCTime("occurred_at", activity.OccurredAt); err != nil {
 		return err
 	}
 
 	if err := validateUTCTime("recorded_at", activity.RecordedAt); err != nil {
 		return err
+	}
+
+	if activity.RecordedAt.UnixMilli() != idMilliseconds {
+		return fmt.Errorf("validate activity: ID timestamp must equal recorded_at at millisecond precision")
 	}
 
 	if activity.OccurredAt.After(activity.RecordedAt) {
