@@ -123,3 +123,5 @@ None recorded.
 - 2026-09-03: Completed Slice 3 implementation, documentation, and validation;
   moved it to review with the installed runtime and live legacy journal
   unchanged.
+- 2026-09-03: Opened pull request `#9` from
+  `feat/typed-activity-retrieval` to `dev`.
