@@ -1,6 +1,6 @@
 # Slice 1: Canonical Typed Journal Core
 
-Status: reviewing
+Status: delivered
 Delivery set: Typed Activity Journal
 Plan: `ops/default/plan/typed-activity-journal.md`
 Tracker: `ops/default/tracker/typed-activity-journal.md`
