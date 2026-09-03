@@ -176,7 +176,7 @@ func TestAppRecordsEveryPeerTypeAndUsesNaturalIdempotency(t *testing.T) {
 	assertPeerTypeCounts(t, result.Events)
 }
 
-func assertPeerTypeCounts(t *testing.T, events []Activity) {
+func assertPeerTypeCounts(t *testing.T, events []ActivityProjection) {
 	t.Helper()
 
 	counts := make(map[ActivityType]int)

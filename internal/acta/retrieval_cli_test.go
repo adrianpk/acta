@@ -15,8 +15,13 @@ func TestParseSearchOptions(t *testing.T) {
 	options, err := parseSearchOptions([]string{
 		"--query", "runtime",
 		"--scope", "example",
+		"--pull-request", "example#42:merged",
+		"--source", "human",
 		"--type", "commit,note",
+		"--occurred-from", "2026-07-31T22:00:00Z",
 		"--recorded-from", "2026-08-01T00:00:00+02:00",
+		"--duration-min", "30",
+		"--duration-max", "240",
 		"--limit", "12",
 		"--order", "ascending",
 		"--json",
@@ -27,14 +32,34 @@ func TestParseSearchOptions(t *testing.T) {
 
 	wantTime := time.Date(2026, 8, 1, 0, 0, 0, 0, time.FixedZone("offset", 2*60*60))
 
-	valid := options.json &&
-		options.query.Text == "runtime" &&
-		options.query.Scope == "example" &&
-		len(options.query.Types) == 2 &&
-		options.query.RecordedFrom.Equal(wantTime) &&
-		options.query.Limit == 12 &&
-		options.query.Order == QueryAscending
-	if !valid {
+	assertParsedSearchCore(t, options)
+	assertParsedSearchFilters(t, options, wantTime)
+}
+
+func assertParsedSearchCore(t *testing.T, options searchOptions) {
+	t.Helper()
+
+	if !options.json || options.query.Text != "runtime" || options.query.Scope != "example" {
+		t.Fatalf("parseSearchOptions() = %#v", options)
+	}
+
+	if options.query.PullRequest != "example#42:merged" || options.query.Source != ProvenanceTypeHuman {
+		t.Fatalf("parseSearchOptions() = %#v", options)
+	}
+
+	if len(options.query.Types) != 2 || options.query.Limit != 12 || options.query.Order != QueryAscending {
+		t.Fatalf("parseSearchOptions() = %#v", options)
+	}
+}
+
+func assertParsedSearchFilters(t *testing.T, options searchOptions, wantTime time.Time) {
+	t.Helper()
+
+	if !options.query.OccurredFrom.Equal(wantTime) || !options.query.RecordedFrom.Equal(wantTime) {
+		t.Fatalf("parseSearchOptions() = %#v", options)
+	}
+
+	if options.query.DurationMin != 30 || options.query.DurationMax != 240 {
 		t.Fatalf("parseSearchOptions() = %#v", options)
 	}
 }
@@ -83,7 +108,7 @@ func TestParseRetrievalOptionsRejectsInvalidInput(t *testing.T) {
 	}
 }
 
-func TestParseCorrectOptionsDistinguishesAbsentAndEmptyNote(t *testing.T) {
+func TestParseCorrectOptionsDistinguishesAbsentAndEmptySummary(t *testing.T) {
 	t.Parallel()
 
 	base := []string{
@@ -96,13 +121,36 @@ func TestParseCorrectOptionsDistinguishesAbsentAndEmptyNote(t *testing.T) {
 		t.Fatalf("parse absent note: %v", err)
 	}
 
-	empty, err := parseCorrectOptions(append(base, "--note", ""), &bytes.Buffer{})
+	empty, err := parseCorrectOptions(append(base, "--summary", ""), &bytes.Buffer{})
 	if err != nil {
 		t.Fatalf("parse empty note: %v", err)
 	}
 
 	if absent.params.ReplacementSummary != nil || empty.params.ReplacementSummary == nil || *empty.params.ReplacementSummary != "" {
 		t.Fatalf("replacement summaries = %#v, %#v", absent.params.ReplacementSummary, empty.params.ReplacementSummary)
+	}
+}
+
+func TestParseCorrectOptionsAcceptsOccurrenceAndDuration(t *testing.T) {
+	t.Parallel()
+
+	options, err := parseCorrectOptions([]string{
+		"--target", "01K1Z8V7BMMN6W7Y6R8QJHA9SS",
+		"--reason", "Correct timesheet facts",
+		"--at", "2026-08-01T08:00:00+02:00",
+		"--duration", "90",
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("parseCorrectOptions() error = %v", err)
+	}
+
+	wantTime := time.Date(2026, 8, 1, 8, 0, 0, 0, time.FixedZone("offset", 2*60*60))
+	if !options.params.ReplacementOccurredAt.Equal(wantTime) {
+		t.Fatalf("parseCorrectOptions() = %#v", options)
+	}
+
+	if options.params.ReplacementDurationMinutes == nil || *options.params.ReplacementDurationMinutes != 90 {
+		t.Fatalf("parseCorrectOptions() = %#v", options)
 	}
 }
 
@@ -143,7 +191,7 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 		"correct",
 		"--target", string(event.ID),
 		"--reason", "Clarify integration behavior",
-		"--note", "Corrected integration behavior",
+		"--summary", "Corrected integration behavior",
 		"--json",
 	})
 
@@ -151,7 +199,8 @@ func TestAppRetrievalAndCorrectionEndToEnd(t *testing.T) {
 	decodeCLIResult(t, correctOutput, &corrected)
 	assertCorrectedEvent(t, corrected, event.ID, "Corrected integration behavior")
 
-	if !strings.Contains(runTestAppCommand(t, config, []string{"search"}), "Corrected integration behavior") {
+	humanSearch := runTestAppCommand(t, config, []string{"search"})
+	if !strings.Contains(humanSearch, string(corrected.Event.ID)) || !strings.Contains(humanSearch, "Corrected integration behavior") {
 		t.Fatal("human search output does not contain the effective correction summary")
 	}
 
@@ -175,8 +224,10 @@ func assertAppReportEndToEnd(t *testing.T, config Config, event Event) {
 	humanReport := runTestAppCommand(t, config, []string{
 		"report", "--from", reportFrom, "--to", reportTo, "--timezone", "UTC",
 	})
-	if !strings.Contains(humanReport, reportFrom) || !strings.Contains(humanReport, activityScopeName(event)) {
-		t.Fatalf("human report = %q", humanReport)
+	for _, expected := range []string{reportFrom, activityScopeName(event), string(event.ID), "total: 1 events, 0 minutes"} {
+		if !strings.Contains(humanReport, expected) {
+			t.Fatalf("human report = %q, want %q", humanReport, expected)
+		}
 	}
 }
 

@@ -16,9 +16,11 @@ var ErrCorrectionTargetStale = errors.New("correction target is not effective")
 
 // CorrectParams contains append-only correction input.
 type CorrectParams struct {
-	TargetID           EventID `json:"target_id"`
-	Reason             string  `json:"reason"`
-	ReplacementSummary *string `json:"replacement_summary,omitempty"`
+	TargetID                   EventID    `json:"target_id"`
+	Reason                     string     `json:"reason"`
+	ReplacementOccurredAt      *time.Time `json:"replacement_occurred_at,omitempty"`
+	ReplacementSummary         *string    `json:"replacement_summary,omitempty"`
+	ReplacementDurationMinutes *int       `json:"replacement_duration_minutes,omitempty"`
 }
 
 // CorrectResult describes a newly appended correction.
@@ -81,8 +83,20 @@ func (corrector *Corrector) replacement(target Activity, params CorrectParams) (
 	event.Supersedes = target.ID
 	event.CorrectionReason = params.Reason
 
+	if params.ReplacementOccurredAt != nil {
+		event.OccurredAt = params.ReplacementOccurredAt.UTC()
+	}
+
 	if params.ReplacementSummary != nil {
 		event.Summary = *params.ReplacementSummary
+	}
+
+	if params.ReplacementDurationMinutes != nil {
+		if event.Type != ActivityTypeWorklog || event.Properties == nil {
+			return Activity{}, fmt.Errorf("%w: only worklogs have duration", ErrEventInvalid)
+		}
+
+		event.Properties.DurationMinutes = *params.ReplacementDurationMinutes
 	}
 
 	if err := event.Validate(); err != nil {

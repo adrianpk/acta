@@ -54,34 +54,48 @@ type Query struct {
 
 // QueryResult contains bounded effective activities and truncation metadata.
 type QueryResult struct {
-	Query         Query      `json:"query"`
-	Events        []Activity `json:"events"`
-	ReturnedCount int        `json:"returned_count"`
-	Truncated     bool       `json:"truncated"`
+	Query         Query                `json:"query"`
+	Events        []ActivityProjection `json:"events"`
+	ReturnedCount int                  `json:"returned_count"`
+	Truncated     bool                 `json:"truncated"`
 }
 
 // Search returns effective activities matching one normalized bounded query.
 func (journal *Journal) Search(ctx context.Context, query Query) (QueryResult, error) {
-	normalized, err := normalizeQuery(query)
+	normalized, matches, err := journal.findEffectiveActivities(ctx, query)
 	if err != nil {
 		return QueryResult{}, err
+	}
+
+	projections := make([]ActivityProjection, 0, len(matches))
+	for _, event := range matches {
+		projections = append(projections, projectActivity(event))
+	}
+
+	return boundedQueryResult(normalized, projections), nil
+}
+
+func (journal *Journal) findEffectiveActivities(ctx context.Context, query Query) (Query, []Activity, error) {
+	normalized, err := normalizeQuery(query)
+	if err != nil {
+		return Query{}, nil, err
 	}
 
 	journal.mu.RLock()
 	defer journal.mu.RUnlock()
 
 	if !journal.loaded {
-		return QueryResult{}, ErrJournalNotLoaded
+		return Query{}, nil, ErrJournalNotLoaded
 	}
 
 	matches, err := journal.queryMatches(ctx, normalized)
 	if err != nil {
-		return QueryResult{}, err
+		return Query{}, nil, err
 	}
 
 	sortQueryActivities(matches, normalized.Order)
 
-	return boundedQueryResult(normalized, matches), nil
+	return normalized, matches, nil
 }
 
 func (journal *Journal) queryMatches(ctx context.Context, query Query) ([]Activity, error) {
@@ -414,8 +428,8 @@ func compareActivityTimes(left, right Activity) int {
 	return strings.Compare(string(left.ID), string(right.ID))
 }
 
-func boundedQueryResult(query Query, matches []Activity) QueryResult {
-	result := QueryResult{Query: query, Events: make([]Activity, 0, min(query.Limit, len(matches)))}
+func boundedQueryResult(query Query, matches []ActivityProjection) QueryResult {
+	result := QueryResult{Query: query, Events: make([]ActivityProjection, 0, min(query.Limit, len(matches)))}
 
 	for index, event := range matches {
 		if index >= query.Limit {
@@ -425,7 +439,7 @@ func boundedQueryResult(query Query, matches []Activity) QueryResult {
 		}
 
 		candidate := result
-		candidate.Events = append(append([]Activity(nil), result.Events...), event)
+		candidate.Events = append(append([]ActivityProjection(nil), result.Events...), event)
 		candidate.ReturnedCount = len(candidate.Events)
 		candidate.Truncated = index+1 < len(matches)
 
@@ -441,6 +455,19 @@ func boundedQueryResult(query Query, matches []Activity) QueryResult {
 	result.ReturnedCount = len(result.Events)
 
 	return result
+}
+
+func projectActivity(event Activity) ActivityProjection {
+	return ActivityProjection{
+		ID:              event.ID,
+		Type:            event.Type,
+		OccurredAt:      event.OccurredAt,
+		RecordedAt:      event.RecordedAt,
+		ScopeName:       activityScopeName(event),
+		Summary:         event.Summary,
+		DurationMinutes: activityDuration(event),
+		Identifier:      activityIdentifier(event),
+	}
 }
 
 func queryResponseFits(result QueryResult) bool {

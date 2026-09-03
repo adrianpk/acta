@@ -62,6 +62,60 @@ func TestJournalReportUsesInclusiveFromAndExclusiveTo(t *testing.T) {
 	}
 }
 
+func TestJournalReportSumsOnlyExplicitWorklogMinutes(t *testing.T) {
+	t.Parallel()
+
+	journal := NewJournal(testJournalConfig(t))
+	if err := journal.Load(context.Background()); err != nil {
+		t.Fatalf("load journal: %v", err)
+	}
+
+	worklog := validWorklogActivity()
+	worklog.RecordedAt = time.Date(2026, 9, 3, 10, 0, 0, 0, time.UTC)
+	worklog.OccurredAt = worklog.RecordedAt
+	worklog.ID = nextEventID(t, worklog.RecordedAt, 41)
+	note := validNoteActivity()
+	note.RecordedAt = time.Date(2026, 9, 3, 11, 0, 0, 0, time.UTC)
+	note.OccurredAt = note.RecordedAt
+	note.ID = nextEventID(t, note.RecordedAt, 42)
+
+	appendJournalEvent(t, journal, worklog)
+	appendJournalEvent(t, journal, note)
+
+	result, err := journal.Report(context.Background(), ReportParams{From: "2026-09-03", To: "2026-09-04", Timezone: "UTC"})
+	if err != nil {
+		t.Fatalf("Report() error = %v", err)
+	}
+
+	assertExplicitWorklogTotals(t, result)
+	assertCompactReportProjection(t, result)
+}
+
+func assertExplicitWorklogTotals(t *testing.T, result ReportResult) {
+	t.Helper()
+
+	if result.EventCount != 2 || result.WorklogMinutes != 240 || result.ReturnedCount != 2 {
+		t.Fatalf("report totals = %#v", result)
+	}
+
+	if len(result.Days) != 1 || len(result.Days[0].Scopes) != 2 {
+		t.Fatalf("report groups = %#v", result.Days)
+	}
+}
+
+func assertCompactReportProjection(t *testing.T, result ReportResult) {
+	t.Helper()
+
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+
+	if strings.Contains(string(encoded), "properties") || !strings.Contains(string(encoded), "duration_minutes") {
+		t.Fatalf("report projection = %s", encoded)
+	}
+}
+
 func TestJournalReportDefaultsToLocalTimezoneAndMaximumLimit(t *testing.T) {
 	t.Parallel()
 

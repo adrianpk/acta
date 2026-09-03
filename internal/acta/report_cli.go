@@ -50,7 +50,7 @@ func parseReportOptions(arguments []string, errorOutput io.Writer) (reportOption
 
 	if len(flags.Args()) != 0 || options.params.From == "" || options.params.To == "" {
 		return reportOptions{}, fmt.Errorf(
-			"usage: acta report --from <date> --to <date> [--timezone <name>] [--limit <count>] [--json]",
+			"usage: acta report --from <date> --to <date> [--timezone <name>] [--type <types>] [--limit <count>] [--json]",
 		)
 	}
 
@@ -69,6 +69,10 @@ func writeHumanReport(writer io.Writer, result ReportResult) error {
 		if err := writeReportDay(writer, day, location); err != nil {
 			return err
 		}
+	}
+
+	if _, err := fmt.Fprintf(writer, "total: %d events, %d minutes\n", result.EventCount, result.WorklogMinutes); err != nil {
+		return err
 	}
 
 	if result.Truncated {
@@ -106,13 +110,14 @@ func writeReportScope(writer io.Writer, scope ReportScope, location *time.Locati
 	return nil
 }
 
-func writeReportEvent(writer io.Writer, event Event, location *time.Location) error {
+func writeReportEvent(writer io.Writer, event ActivityProjection, location *time.Location) error {
 	_, err := fmt.Fprintf(
 		writer,
-		"    %s %s %s %q\n",
+		"    %s %s %s %s %q\n",
 		event.OccurredAt.In(location).Format("15:04:05"),
+		event.ID,
 		event.Type,
-		activityIdentifier(event),
+		event.Identifier,
 		event.Summary,
 	)
 

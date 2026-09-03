@@ -74,6 +74,46 @@ func TestCorrectorPreservesSummaryWhenReplacementIsAbsent(t *testing.T) {
 	}
 }
 
+func TestCorrectorChangesWorklogOccurrenceAndDuration(t *testing.T) {
+	t.Parallel()
+
+	target := validWorklogActivity()
+	journal := loadedJournalWithEvent(t, target)
+	occurredAt := target.OccurredAt.Add(-2 * time.Hour)
+	duration := 90
+
+	result, err := deterministicCorrector(journal).Correct(context.Background(), CorrectParams{
+		TargetID:                   target.ID,
+		Reason:                     "Correct the timesheet facts",
+		ReplacementOccurredAt:      &occurredAt,
+		ReplacementDurationMinutes: &duration,
+	})
+	if err != nil {
+		t.Fatalf("Correct() error = %v", err)
+	}
+
+	if !result.Event.OccurredAt.Equal(occurredAt) || result.Event.Properties.DurationMinutes != duration {
+		t.Fatalf("corrected worklog = %#v", result.Event)
+	}
+}
+
+func TestCorrectorRejectsDurationForNonWorklog(t *testing.T) {
+	t.Parallel()
+
+	target := validNoteActivity()
+	journal := loadedJournalWithEvent(t, target)
+	duration := 30
+
+	_, err := deterministicCorrector(journal).Correct(context.Background(), CorrectParams{
+		TargetID:                   target.ID,
+		Reason:                     "Invalid duration correction",
+		ReplacementDurationMinutes: &duration,
+	})
+	if !errors.Is(err, ErrEventInvalid) {
+		t.Fatalf("Correct() error = %v, want ErrEventInvalid", err)
+	}
+}
+
 func TestCorrectorRejectsMissingStaleAndInvalidTargets(t *testing.T) {
 	t.Parallel()
 

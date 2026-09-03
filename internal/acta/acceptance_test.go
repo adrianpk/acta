@@ -141,7 +141,12 @@ func assertAcceptanceCorrection(t *testing.T, journal *Journal, milestone, corre
 		t.Fatalf("effective events = %#v", result.Events)
 	}
 
-	effective := result.Events[0]
+	shown, err := journal.Show(context.Background(), ShowParams{ID: milestone.ID})
+	if err != nil {
+		t.Fatalf("show effective correction: %v", err)
+	}
+
+	effective := shown.Event
 	if effective.Supersedes != milestone.ID || *effective.Scope != *milestone.Scope || !reflect.DeepEqual(*effective.Properties, *milestone.Properties) {
 		t.Fatalf("self-contained correction = %#v", effective)
 	}

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,6 +38,10 @@ type optionalString struct {
 	target **string
 }
 
+type optionalInt struct {
+	target **int
+}
+
 func (app *App) runSearch(ctx context.Context, arguments []string) error {
 	options, err := parseSearchOptions(arguments, app.stderr)
 	if err != nil {
@@ -53,7 +58,7 @@ func (app *App) runSearch(ctx context.Context, arguments []string) error {
 	}
 
 	for _, event := range result.Events {
-		if err := writeEventLine(app.stdout, event); err != nil {
+		if err := writeProjectionLine(app.stdout, event); err != nil {
 			return err
 		}
 	}
@@ -141,6 +146,7 @@ func bindSearchFlags(flags *flag.FlagSet, options *searchOptions, values *search
 	flags.StringVar(&options.query.Scope, "scope", "", "scope name or identity")
 	flags.StringVar(&options.query.Commit, "commit", "", "full or abbreviated commit")
 	flags.StringVar(&options.query.PullRequest, "pull-request", "", "pull-request identity")
+	flags.StringVar((*string)(&options.query.Source), "source", "", "human, agent, or integration provenance")
 	flags.StringVar(&options.query.Harness, "harness", "", "execution harness")
 	flags.StringVar(&options.query.Model, "model", "", "execution model")
 	flags.StringVar(&values.eventTypes, "type", "", "comma-separated event types")
@@ -207,9 +213,14 @@ func parseCorrectOptions(arguments []string, errorOutput io.Writer) (correctOpti
 
 	var options correctOptions
 
-	note := optionalString{target: &options.params.ReplacementSummary}
+	var occurredAt string
 
-	flags.Var(&note, "note", "replacement note")
+	summary := optionalString{target: &options.params.ReplacementSummary}
+	duration := optionalInt{target: &options.params.ReplacementDurationMinutes}
+
+	flags.StringVar(&occurredAt, "at", "", "replacement RFC3339 occurrence time")
+	flags.Var(&duration, "duration", "replacement worklog duration in minutes")
+	flags.Var(&summary, "summary", "replacement summary")
 	flags.StringVar((*string)(&options.params.TargetID), "target", "", "current effective event ID")
 	flags.StringVar(&options.params.Reason, "reason", "", "correction reason")
 	flags.BoolVar(&options.json, "json", false, "write JSON output")
@@ -218,8 +229,17 @@ func parseCorrectOptions(arguments []string, errorOutput io.Writer) (correctOpti
 		return correctOptions{}, err
 	}
 
+	parsedOccurredAt, err := parseOptionalTime("at", occurredAt)
+	if err != nil {
+		return correctOptions{}, err
+	}
+
+	options.params.ReplacementOccurredAt = parsedOccurredAt
+
 	if len(flags.Args()) != 0 || options.params.TargetID == "" || strings.TrimSpace(options.params.Reason) == "" {
-		return correctOptions{}, fmt.Errorf("usage: acta correct --target <event-id> --reason <reason> [--note <note>] [--json]")
+		return correctOptions{}, fmt.Errorf(
+			"usage: acta correct --target <event-id> --reason <reason> [--at <time>] [--summary <summary>] [--duration <minutes>] [--json]",
+		)
 	}
 
 	return options, nil
@@ -235,6 +255,25 @@ func (value *optionalString) String() string {
 
 func (value *optionalString) Set(input string) error {
 	*value.target = &input
+
+	return nil
+}
+
+func (value *optionalInt) String() string {
+	if value == nil || value.target == nil || *value.target == nil {
+		return ""
+	}
+
+	return strconv.Itoa(**value.target)
+}
+
+func (value *optionalInt) Set(input string) error {
+	parsed, err := strconv.Atoi(input)
+	if err != nil {
+		return fmt.Errorf("parse integer: %w", err)
+	}
+
+	*value.target = &parsed
 
 	return nil
 }
@@ -288,13 +327,29 @@ func writeJSON(writer io.Writer, value any) error {
 func writeEventLine(writer io.Writer, event Event) error {
 	_, err := fmt.Fprintf(
 		writer,
-		"%s %s %s %s %q\n",
+		"%s %s %s %s %s %q\n",
 		event.OccurredAt.Format(time.RFC3339),
+		event.ID,
 		event.Type,
 		activityScopeName(event),
 		activityIdentifier(event),
 		event.Summary,
 	)
+
+	return err
+}
+
+func writeProjectionLine(writer io.Writer, event ActivityProjection) error {
+	parts := []string{event.OccurredAt.Format(time.RFC3339), string(event.ID), string(event.Type)}
+	if event.ScopeName != "" {
+		parts = append(parts, event.ScopeName)
+	}
+
+	if event.Identifier != "" {
+		parts = append(parts, event.Identifier)
+	}
+
+	_, err := fmt.Fprintf(writer, "%s %q\n", strings.Join(parts, " "), event.Summary)
 
 	return err
 }

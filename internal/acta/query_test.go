@@ -69,6 +69,107 @@ func TestJournalSearchFiltersCanonicalFields(t *testing.T) {
 	}
 }
 
+func TestJournalSearchFiltersPeerFieldsAndReturnsCompactProjections(t *testing.T) {
+	t.Parallel()
+
+	journal, pullRequest, worklog, note := newPeerQueryJournal(t)
+	assertPeerQueryResults(t, journal, pullRequest, worklog, note)
+	assertCompactWorklogProjection(t, journal)
+}
+
+func newPeerQueryJournal(t *testing.T) (*Journal, Activity, Activity, Activity) {
+	t.Helper()
+
+	journal := NewJournal(testJournalConfig(t))
+	if err := journal.Load(context.Background()); err != nil {
+		t.Fatalf("load journal: %v", err)
+	}
+
+	pullRequest := validPullRequestActivity()
+	pullRequest.RecordedAt = time.Date(2026, 9, 3, 9, 0, 0, 0, time.UTC)
+	pullRequest.OccurredAt = pullRequest.RecordedAt
+	pullRequest.ID = nextEventID(t, pullRequest.RecordedAt, 31)
+
+	worklog := validWorklogActivity()
+	worklog.RecordedAt = time.Date(2026, 9, 3, 10, 0, 0, 0, time.UTC)
+	worklog.OccurredAt = worklog.RecordedAt
+	worklog.ID = nextEventID(t, worklog.RecordedAt, 32)
+	worklog.Provenance = &ActivityProvenance{Type: ProvenanceTypeHuman}
+
+	note := validNoteActivity()
+	note.RecordedAt = time.Date(2026, 9, 3, 11, 0, 0, 0, time.UTC)
+	note.OccurredAt = note.RecordedAt
+	note.ID = nextEventID(t, note.RecordedAt, 33)
+	note.References = []ActivityReference{{Type: ReferenceTypeURL, URL: "https://example.test/decision"}}
+
+	for _, event := range []Activity{pullRequest, worklog, note} {
+		appendJournalEvent(t, journal, event)
+	}
+
+	return journal, pullRequest, worklog, note
+}
+
+func assertPeerQueryResults(t *testing.T, journal *Journal, pullRequest, worklog, note Activity) {
+	t.Helper()
+
+	tests := []struct {
+		name  string
+		query Query
+		want  EventID
+	}{
+		{name: "pull request", query: Query{PullRequest: "team/example#42:merged"}, want: pullRequest.ID},
+		{name: "duration", query: Query{DurationMin: 200, DurationMax: 300}, want: worklog.ID},
+		{name: "source", query: Query{Source: ProvenanceTypeHuman}, want: worklog.ID},
+		{name: "scope", query: Query{Scope: "production observability"}, want: worklog.ID},
+		{name: "reference text", query: Query{Text: "example.test/decision"}, want: note.ID},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.query.Limit = 10
+
+			result, err := journal.Search(context.Background(), test.query)
+			if err != nil {
+				t.Fatalf("Search() error = %v", err)
+			}
+
+			if len(result.Events) != 1 || result.Events[0].ID != test.want {
+				t.Fatalf("Search() events = %#v", result.Events)
+			}
+		})
+	}
+}
+
+func assertCompactWorklogProjection(t *testing.T, journal *Journal) {
+	t.Helper()
+
+	result, err := journal.Search(context.Background(), Query{Types: []ActivityType{ActivityTypeWorklog}, Limit: 10})
+	if err != nil {
+		t.Fatalf("search worklog projection: %v", err)
+	}
+
+	if result.Events[0].DurationMinutes != 240 || result.Events[0].Identifier != "" {
+		t.Fatalf("worklog projection = %#v", result.Events[0])
+	}
+
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal projection result: %v", err)
+	}
+
+	for _, forbidden := range []string{"properties", "references", "provenance", "supersedes", "correction_reason"} {
+		assertProjectionExcludes(t, encoded, forbidden)
+	}
+}
+
+func assertProjectionExcludes(t *testing.T, encoded []byte, forbidden string) {
+	t.Helper()
+
+	if strings.Contains(string(encoded), forbidden) {
+		t.Fatalf("projection result contains %q: %s", forbidden, encoded)
+	}
+}
+
 func TestJournalSearchOrdersAndTruncates(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +205,12 @@ func TestQueryResultStopsBeforeResponseByteLimit(t *testing.T) {
 		matches[index] = event
 	}
 
-	result := boundedQueryResult(Query{Limit: matchCount}, matches)
+	projections := make([]ActivityProjection, 0, len(matches))
+	for _, match := range matches {
+		projections = append(projections, projectActivity(match))
+	}
+
+	result := boundedQueryResult(Query{Limit: matchCount}, projections)
 	if !result.Truncated || result.ReturnedCount >= matchCount {
 		t.Fatalf("bounded result = %#v", result)
 	}
@@ -188,7 +294,7 @@ func newQueryFixture(t *testing.T) queryFixture {
 	return queryFixture{journal: journal, milestoneA: milestoneA, correction: correction, milestoneB: milestoneB, milestoneC: milestoneC}
 }
 
-func assertEventIDs(t *testing.T, events []Activity, want []EventID) {
+func assertEventIDs(t *testing.T, events []ActivityProjection, want []EventID) {
 	t.Helper()
 
 	if len(events) != len(want) {

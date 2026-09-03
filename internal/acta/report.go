@@ -33,11 +33,11 @@ type ReportInterval struct {
 
 // ReportScope groups effective activities for one scope.
 type ReportScope struct {
-	Name           string     `json:"name"`
-	Identity       string     `json:"identity,omitempty"`
-	Events         []Activity `json:"events"`
-	EventCount     int        `json:"event_count"`
-	WorklogMinutes int        `json:"worklog_minutes"`
+	Name           string               `json:"name"`
+	Identity       string               `json:"identity,omitempty"`
+	Events         []ActivityProjection `json:"events"`
+	EventCount     int                  `json:"event_count"`
+	WorklogMinutes int                  `json:"worklog_minutes"`
 }
 
 // ReportDay groups scopes by local occurrence date.
@@ -74,7 +74,7 @@ func (journal *Journal) Report(ctx context.Context, params ReportParams) (Report
 		return ReportResult{}, err
 	}
 
-	queryResult, err := journal.Search(ctx, Query{
+	_, events, err := journal.findEffectiveActivities(ctx, Query{
 		Types:        normalized.types,
 		OccurredFrom: &normalized.from,
 		OccurredTo:   &normalized.to,
@@ -85,7 +85,12 @@ func (journal *Journal) Report(ctx context.Context, params ReportParams) (Report
 		return ReportResult{}, err
 	}
 
-	return boundedReportResult(normalized, queryResult.Events, queryResult.Truncated), nil
+	truncated := len(events) > normalized.limit
+	if truncated {
+		events = events[:normalized.limit]
+	}
+
+	return boundedReportResult(normalized, events, truncated), nil
 }
 
 func normalizeReport(params ReportParams) (normalizedReport, error) {
@@ -267,12 +272,12 @@ func addReportActivity(day *ReportDay, indexes map[string]int, event Activity) {
 		index = len(day.Scopes)
 		indexes[key] = index
 
-		day.Scopes = append(day.Scopes, ReportScope{Name: name, Identity: identity, Events: make([]Activity, 0)})
+		day.Scopes = append(day.Scopes, ReportScope{Name: name, Identity: identity, Events: make([]ActivityProjection, 0)})
 	}
 
 	duration := activityDuration(event)
 	scope := &day.Scopes[index]
-	scope.Events = append(scope.Events, event)
+	scope.Events = append(scope.Events, projectActivity(event))
 	scope.EventCount++
 	scope.WorklogMinutes += duration
 	day.EventCount++
