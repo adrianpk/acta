@@ -109,3 +109,5 @@ None recorded.
   and activated Slice 2.
 - 2026-09-03: Completed Slice 2 implementation and validation; moved it to
   review with the installed runtime and live legacy journal unchanged.
+- 2026-09-03: Opened pull request `#8` from
+  `feat/typed-activity-recording` to `dev`.

@@ -5,7 +5,7 @@ Delivery set: Typed Activity Journal
 Plan: `ops/default/plan/typed-activity-journal.md`
 Tracker: `ops/default/tracker/typed-activity-journal.md`
 Branch: `feat/typed-activity-recording`
-PR: pending
+PR: `#8`
 
 ## Purpose
 
