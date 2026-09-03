@@ -35,9 +35,17 @@ func NewApp(config Config, stdout, stderr io.Writer) *App {
 // Run executes one CLI command.
 func (app *App) Run(ctx context.Context, arguments []string) error {
 	if len(arguments) == 0 {
-		return fmt.Errorf("usage: acta <correct|record|report|search|serve|show|verify>")
+		return fmt.Errorf("usage: acta <correct|migrate|record|report|search|serve|show|verify>")
 	}
 
+	if arguments[0] == "migrate" {
+		return app.runMigrate(ctx, arguments[1:])
+	}
+
+	return app.runServiceCommand(ctx, arguments)
+}
+
+func (app *App) runServiceCommand(ctx context.Context, arguments []string) error {
 	switch arguments[0] {
 	case "correct":
 		return app.runCorrect(ctx, arguments[1:])

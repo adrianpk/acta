@@ -15,7 +15,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	config, err := acta.DefaultConfig()
+	command := ""
+	if len(os.Args) > 1 {
+		command = os.Args[1]
+	}
+
+	config, err := acta.DefaultConfigForCommand(command)
 	if err == nil {
 		err = acta.NewApp(config, os.Stdout, os.Stderr).Run(ctx, os.Args[1:])
 	}

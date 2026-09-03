@@ -18,6 +18,15 @@ type Config struct {
 	SocketPath            string
 }
 
+// DefaultConfigForCommand skips service paths for the offline migrator.
+func DefaultConfigForCommand(command string) (Config, error) {
+	if command == "migrate" {
+		return Config{}, nil
+	}
+
+	return DefaultConfig()
+}
+
 // DefaultConfig resolves Acta paths from the current process environment.
 func DefaultConfig() (Config, error) {
 	home, err := os.UserHomeDir()

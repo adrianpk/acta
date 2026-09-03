@@ -85,3 +85,12 @@ func TestDefaultConfigRequiresRuntimeDirectory(t *testing.T) {
 		t.Fatal("expected runtime directory error")
 	}
 }
+
+func TestDefaultConfigForMigrationDoesNotRequireRuntimeDirectory(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "")
+
+	config, err := DefaultConfigForCommand("migrate")
+	if err != nil || config != (Config{}) {
+		t.Fatalf("DefaultConfigForCommand() = %#v, %v", config, err)
+	}
+}
