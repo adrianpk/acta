@@ -95,16 +95,44 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 - Slice 4: `go test -count=1 ./internal/acta -run 'Test(Migrator|ParseMigration|AppMigrates|Legacy)'` (pass)
 - Slice 4: `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket assets/systemd/user/acta-verify.service assets/systemd/user/acta-verify.timer` (pass)
 - Slice 4: `git diff --check` (pass)
+- Exact candidate `b2ca90b`: `make check` (pass)
+- Exact candidate `b2ca90b`: `make test` (pass)
+- Exact candidate `b2ca90b`: `make docs-check` (pass)
+- Exact candidate `b2ca90b`: `make verify` (pass, 0 lint issues)
+- Exact candidate `b2ca90b`: `go test -race ./...` (pass)
+- Exact candidate `b2ca90b`: `go test -count=1 ./internal/acta -run 'Test(Migrator|ParseMigration|AppMigrates|Legacy)'` (pass)
+- Exact candidate `b2ca90b`: `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket assets/systemd/user/acta-verify.service assets/systemd/user/acta-verify.timer` (pass)
+- Exact candidate `b2ca90b`: `git diff --check` (pass)
+- Rehearsal: two independent 2-segment, 2,372-event migrations produced
+  byte-identical journal trees and manifests (pass)
+- Frozen cutover: final migration manifest matched the rehearsal manifest
+  byte for byte (pass)
+- Post-install: `acta verify --full` verified 2 segments and 2,374 events after
+  the write and correction smoke checks (pass)
+- Post-install: note recording, commit idempotency, search, effective and raw
+  show, occurrence-date report, and append-only correction smoke checks (pass)
 
 ## Deployment state
 
-- Installed runtime: legacy schema, active.
-- Live journal: legacy schema, verified before planning.
-- Candidate installation: pending.
-- Rehearsal migration: pending.
-- Writer freeze: pending.
-- Live migration: pending.
-- Rollback snapshots: pending.
+- Installed runtime: canonical schema from `b2ca90b`, active.
+- Live journal: canonical schema, full verification passed after smoke checks.
+- Candidate installation: completed on 2026-09-03; installed binary SHA-256 is
+  `53e13c75cf6820d848f58bf08726bb448ef48f64c6e9ce2d86dc2e3eaaf3525c`.
+- Rehearsal migration: completed twice from one verified 2,372-event source
+  copy; journal trees and manifests were byte-identical.
+- Writer freeze: completed with socket, service, timer, and verification unit
+  inactive and no Acta process present before snapshots and final migration.
+- Live migration: completed from 2 legacy segments and 2,372 stored events to
+  2 canonical segments and 2,372 stored events, with 2,371 effective events
+  before post-install smoke writes.
+- Migration manifest: retained at
+  `$HOME/.acta/migration-manifest-20260903T154026CEST.json`, SHA-256
+  `9006e5c75af981f708051e188044a6b88fddc75ec417c131f8d4f482702bb157`.
+- Rollback snapshots: retained at
+  `$HOME/.local/bin/acta.legacy-20260903T154026CEST`,
+  `$HOME/.acta/events.legacy-snapshot-20260903T154026CEST`, and
+  `$HOME/.acta/events.legacy-live-20260903T154026CEST` pending explicit
+  maintainer acceptance.
 
 ## Blockers
 
@@ -146,3 +174,12 @@ None recorded.
   and completed the four-slice delivery set.
 - 2026-09-03: The maintainer corrected the inherited cutover gate: Acta uses
   exact-commit local validation and deterministic rehearsal, not staging CI.
+- 2026-09-03: Validated exact candidate `b2ca90b`, completed two byte-identical
+  rehearsal migrations, and confirmed the frozen live source matched the
+  rehearsal source.
+- 2026-09-03: Snapshotted the legacy binary and journal, migrated and installed
+  the canonical runtime and journal, then restored socket activation and
+  scheduled verification.
+- 2026-09-03: Completed full verification and record, idempotency, search,
+  show, report, and append-only correction smoke checks; retained all rollback
+  evidence pending explicit acceptance.
