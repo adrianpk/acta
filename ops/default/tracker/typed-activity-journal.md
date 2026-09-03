@@ -9,7 +9,7 @@ Specification: `ops/default/spec/stable/typed-activity-journal.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
 Progress: 2 of 4 slices completed
 Active slice: Slice 3: Activity Retrieval and Time Reporting
-Active slice status: in_progress
+Active slice status: reviewing
 
 ## Execution gate
 
@@ -23,7 +23,7 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 | --- | --- | --- | --- | --- |
 | Slice 1: Canonical Typed Journal Core | delivered | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
 | Slice 2: Peer Activity Recording | delivered | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
-| Slice 3: Activity Retrieval and Time Reporting | in_progress | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
+| Slice 3: Activity Retrieval and Time Reporting | reviewing | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
 | Slice 4: Deterministic Journal Migration | pending | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
 
 ## Slice 1 tasks
@@ -48,10 +48,10 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 
 | ID | Task | Status | Commit | Validation |
 | --- | --- | --- | --- | --- |
-| `T3.1` | Implement compact projections and typed activity filters. | pending | pending | pending |
-| `T3.2` | Implement event-ID detail and type-preserving append-only correction. | pending | pending | pending |
-| `T3.3` | Implement occurrence-date reports and explicit worklog totals. | pending | pending | pending |
-| `T3.4` | Update README and Diataxis guidance for the complete typed workflow. | pending | pending | pending |
+| `T3.1` | Implement compact projections and typed activity filters. | completed | `88a21c3` | full repository gates; focused search and parsing tests |
+| `T3.2` | Implement event-ID detail and type-preserving append-only correction. | completed | `88a21c3` | full repository gates; focused show and corrector tests |
+| `T3.3` | Implement occurrence-date reports and explicit worklog totals. | completed | `88a21c3` | full repository gates; focused report tests |
+| `T3.4` | Update README and Diataxis guidance for the complete typed workflow. | completed | `5703c1d` | `make docs-check`; `git diff --check` |
 
 ## Slice 4 tasks
 
@@ -78,6 +78,13 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 - Slice 2: `go test -race ./...` (pass)
 - Slice 2: `go test ./internal/acta -run "Test(Parse.*Record|AppRecordsEveryPeerType|ActivityValidatePullRequest|ActivityValidateTypeProperties|Recorder)"` (pass)
 - Slice 2: `git diff --check` (pass)
+- Slice 3: `make check` (pass)
+- Slice 3: `make test` (pass)
+- Slice 3: `make docs-check` (pass)
+- Slice 3: `make verify` (pass, 0 lint issues)
+- Slice 3: `go test -race ./...` (pass)
+- Slice 3: `go test ./internal/acta -run 'Test(JournalSearch|JournalReport|JournalShow|Corrector|ParseSearch|ParseReport|AppRetrieval)'` (pass)
+- Slice 3: `git diff --check` (pass)
 
 ## Deployment state
 
@@ -113,3 +120,6 @@ None recorded.
   `feat/typed-activity-recording` to `dev`.
 - 2026-09-03: Verified pull request `#8` merged into `dev`, delivered Slice 2,
   and activated Slice 3.
+- 2026-09-03: Completed Slice 3 implementation, documentation, and validation;
+  moved it to review with the installed runtime and live legacy journal
+  unchanged.
