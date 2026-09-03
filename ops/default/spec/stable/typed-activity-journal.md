@@ -2,7 +2,7 @@
 
 Status: accepted
 Approval: approved
-Source ticket: `ops/default/ticket/open/20260903094823-adopt-canonical-typed-activity-schema.md`
+Source ticket: `ops/default/ticket/closed/20260903094823-adopt-canonical-typed-activity-schema.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
 Supersedes: the product and event-model contract in
 `ops/default/spec/drafts/acta-system-specification-draft.md`

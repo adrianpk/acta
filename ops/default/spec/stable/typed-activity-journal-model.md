@@ -3,7 +3,7 @@
 Status: accepted
 Approval: approved
 Specification: `ops/default/spec/stable/typed-activity-journal.md`
-Source ticket: `ops/default/ticket/open/20260903094823-adopt-canonical-typed-activity-schema.md`
+Source ticket: `ops/default/ticket/closed/20260903094823-adopt-canonical-typed-activity-schema.md`
 
 ## 1. Canonical event
 

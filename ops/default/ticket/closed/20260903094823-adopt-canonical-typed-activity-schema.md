@@ -1,7 +1,7 @@
 ---
 id: TKT-20260903094823
 title: Adopt one canonical typed activity schema
-status: open
+status: closed
 kind: task
 severity: medium
 priority: normal
@@ -9,7 +9,9 @@ scope: persistence
 tags: activity-schema, migration, reporting
 source: chat
 reported_at: 2026-09-03T09:48:23Z
-commits: []
+commits: [41b16f6, c66525c]
+resolution: moved
+closed_at: 2026-09-03T10:55:46Z
 ---
 
 # Adopt one canonical typed activity schema
