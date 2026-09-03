@@ -16,6 +16,10 @@ Acta creates data directories with mode `0700` and owned files with mode
 `0600`. The supplied systemd units use `UMask=0077`. The service is the sole
 canonical journal writer.
 
+An offline migration writes a new events root and a separately selected
+manifest path. Neither is a fixed live path until an operator performs the
+approved cutover.
+
 ## Canonical event envelope
 
 Each JSONL line contains one complete canonical event. There is no
@@ -94,3 +98,19 @@ text, so capture policies must prohibit secrets and personal data.
 - One local service response can be at most 8 MiB.
 - Search and report return at most 1,000 effective events per request.
 - A summary or correction reason can contain at most 500 Unicode code points.
+
+## Migration manifest
+
+The deterministic `acta/migration-manifest/v1` document has top-level
+`source` and `destination` summaries. Each summary contains:
+
+- a journal SHA-256 digest derived from ordered segment metadata;
+- segment and event counts;
+- effective-event count;
+- ordered event IDs;
+- ordered correction chains with root, effective, and member IDs;
+- ordered relative segment paths with line counts and file SHA-256 digests.
+
+Source and destination digests differ because their encoded event shapes
+differ. Counts, IDs, segment placement, append order, and correction-chain
+semantics must match.

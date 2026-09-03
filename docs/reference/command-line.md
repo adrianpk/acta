@@ -1,7 +1,8 @@
 # Command Line Reference
 
-Acta provides `serve`, `record`, `search`, `show`, `report`, `correct`, and
-`verify`. Client commands require the local service socket.
+Acta provides `serve`, `migrate`, `record`, `search`, `show`, `report`,
+`correct`, and `verify`. Client commands require the local service socket;
+`migrate` is offline and does not use it.
 
 ## `acta serve`
 
@@ -11,6 +12,38 @@ acta serve
 
 Run the per-user service. It adopts the supplied systemd socket when socket
 activation is present. Otherwise, it creates the Unix socket directly.
+
+## `acta migrate`
+
+```text
+acta migrate --source <legacy-journal-root> --destination <canonical-journal-root> --manifest <path>
+```
+
+Transform one frozen legacy events directory into a new canonical events
+directory. The command does not contact or use the service.
+
+| Option | Meaning |
+| --- | --- |
+| `--source <path>` | Existing legacy events root containing only `YYYY/MM.jsonl` segments. |
+| `--destination <path>` | New canonical events root to publish. The path must not exist. |
+| `--manifest <path>` | New deterministic cutover manifest. The path must not exist. |
+
+The three paths are resolved to absolute clean paths. They must be distinct;
+source and destination must not contain each other, and the manifest must be
+outside both. Destination and manifest parent directories must already exist.
+
+Migration strictly decodes every legacy milestone and correction, validates
+the complete source history, writes to a private sibling staging directory,
+verifies the canonical result, and rechecks that the source did not change.
+Only then does it publish the destination and manifest. Publication never
+overwrites an existing target. A failed manifest publication removes the newly
+published destination.
+
+The manifest records deterministic source and destination journal SHA-256
+digests, per-segment paths, line counts and SHA-256 digests, ordered event IDs,
+effective-event count, and ordered correction chains. It contains no generation
+time or machine-specific source and destination paths. Repeating migration from
+the same frozen source produces byte-identical canonical segments and manifest.
 
 ## `acta record`
 
