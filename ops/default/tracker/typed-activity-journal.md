@@ -9,7 +9,7 @@ Specification: `ops/default/spec/stable/typed-activity-journal.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
 Progress: 1 of 4 slices completed
 Active slice: Slice 2: Peer Activity Recording
-Active slice status: in_progress
+Active slice status: reviewing
 
 ## Execution gate
 
@@ -22,7 +22,7 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 | Slice | Status | Branch | Expected PR | Report |
 | --- | --- | --- | --- | --- |
 | Slice 1: Canonical Typed Journal Core | delivered | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
-| Slice 2: Peer Activity Recording | in_progress | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
+| Slice 2: Peer Activity Recording | reviewing | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
 | Slice 3: Activity Retrieval and Time Reporting | pending | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
 | Slice 4: Deterministic Journal Migration | pending | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
 
@@ -39,10 +39,10 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 
 | ID | Task | Status | Commit | Validation |
 | --- | --- | --- | --- | --- |
-| `T2.1` | Implement occurrence time, scope, references, and provenance inputs. | pending | pending | pending |
-| `T2.2` | Implement pull-request recording and action-specific idempotency. | pending | pending | pending |
-| `T2.3` | Implement Git-independent worklog and user-directed note recording. | pending | pending | pending |
-| `T2.4` | Complete typed CLI dispatch, receipts, boundaries, and end-to-end tests. | pending | pending | pending |
+| `T2.1` | Implement occurrence time, scope, references, and provenance inputs. | completed | `f10633a` | full repository gates; common-context parser tests |
+| `T2.2` | Implement pull-request recording and action-specific idempotency. | completed | `f10633a` | peer-type end-to-end and natural-identity tests |
+| `T2.3` | Implement Git-independent worklog and user-directed note recording. | completed | `f10633a` | peer-type end-to-end and occurrence-time tests |
+| `T2.4` | Complete typed CLI dispatch, receipts, boundaries, and end-to-end tests. | completed | `f10633a` | full repository gates; focused record CLI tests |
 
 ## Slice 3 tasks
 
@@ -71,6 +71,13 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 - `go test -race ./...` (pass)
 - `go test ./internal/acta -run 'Test(Activity|Journal|Corrector|Recorder|Verifier|GitInspector)'` (pass)
 - `git diff --check` (pass)
+- Slice 2: `make check` (pass)
+- Slice 2: `make test` (pass)
+- Slice 2: `make docs-check` (pass)
+- Slice 2: `make verify` (pass, 0 lint issues)
+- Slice 2: `go test -race ./...` (pass)
+- Slice 2: `go test ./internal/acta -run "Test(Parse.*Record|AppRecordsEveryPeerType|ActivityValidatePullRequest|ActivityValidateTypeProperties|Recorder)"` (pass)
+- Slice 2: `git diff --check` (pass)
 
 ## Deployment state
 
@@ -100,3 +107,5 @@ None recorded.
   `dev`.
 - 2026-09-03: Verified pull request `#7` merged into `dev`, delivered Slice 1,
   and activated Slice 2.
+- 2026-09-03: Completed Slice 2 implementation and validation; moved it to
+  review with the installed runtime and live legacy journal unchanged.
