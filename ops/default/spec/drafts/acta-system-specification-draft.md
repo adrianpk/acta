@@ -1,6 +1,8 @@
 # Acta System Specification
 
-Status: Proposed
+Status: superseded
+
+Superseded by: `ops/default/spec/stable/typed-activity-journal.md`
 
 Scope: Product, service, and behavioral contract for a low-ceremony chronicle
 manager shared by independent agent sessions. This specification does not

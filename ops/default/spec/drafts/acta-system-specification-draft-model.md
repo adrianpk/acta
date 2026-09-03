@@ -1,6 +1,8 @@
 # Acta System Model
 
-Status: Proposed
+Status: superseded
+
+Superseded by: `ops/default/spec/stable/typed-activity-journal-model.md`
 
 Scope: Durable event and query model owned by the Acta service. This model does
 not authorize implementation.
