@@ -9,7 +9,7 @@ Specification: `ops/default/spec/stable/typed-activity-journal.md`
 Model: `ops/default/spec/stable/typed-activity-journal-model.md`
 Progress: 3 of 4 slices completed
 Active slice: Slice 4: Deterministic Journal Migration
-Active slice status: in_progress
+Active slice status: reviewing
 
 ## Execution gate
 
@@ -24,7 +24,7 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 | Slice 1: Canonical Typed Journal Core | delivered | `feat/typed-activity-core` | `feat: add canonical typed activity core` | `ops/default/report/slices/typed-activity-journal/slice-1-canonical-typed-journal-core.md` |
 | Slice 2: Peer Activity Recording | delivered | `feat/typed-activity-recording` | `feat: add peer activity recording` | `ops/default/report/slices/typed-activity-journal/slice-2-peer-activity-recording.md` |
 | Slice 3: Activity Retrieval and Time Reporting | delivered | `feat/typed-activity-retrieval` | `feat: add typed activity retrieval` | `ops/default/report/slices/typed-activity-journal/slice-3-activity-retrieval-and-time-reporting.md` |
-| Slice 4: Deterministic Journal Migration | in_progress | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
+| Slice 4: Deterministic Journal Migration | reviewing | `feat/typed-activity-migration` | `feat: add deterministic journal migration` | `ops/default/report/slices/typed-activity-journal/slice-4-deterministic-journal-migration.md` |
 
 ## Slice 1 tasks
 
@@ -57,10 +57,10 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 
 | ID | Task | Status | Commit | Validation |
 | --- | --- | --- | --- | --- |
-| `T4.1` | Implement strict migration-only legacy decoding and canonical mapping. | pending | pending | pending |
-| `T4.2` | Implement deterministic offline migration and cutover manifest. | pending | pending | pending |
-| `T4.3` | Add malformed, lossy, repeatability, permission, publication, and rollback tests. | pending | pending | pending |
-| `T4.4` | Complete end-to-end migration, command docs, asset checks, and rehearsal gate. | pending | pending | pending |
+| `T4.1` | Implement strict migration-only legacy decoding and canonical mapping. | completed | `952f191` | full repository gates; focused migration tests |
+| `T4.2` | Implement deterministic offline migration and cutover manifest. | completed | `952f191` | repeatability, manifest, and publication tests |
+| `T4.3` | Add malformed, lossy, repeatability, permission, publication, and rollback tests. | completed | `952f191` | focused migration tests; race tests |
+| `T4.4` | Complete end-to-end migration, command docs, asset checks, and rehearsal gate. | completed | `952f191`, `3a35f3e` | CLI tests; `make docs-check`; systemd asset verification |
 
 ## Validation log
 
@@ -85,6 +85,14 @@ plan and tracker are committed to `dev` and match `origin/dev`.
 - Slice 3: `go test -race ./...` (pass)
 - Slice 3: `go test ./internal/acta -run 'Test(JournalSearch|JournalReport|JournalShow|Corrector|ParseSearch|ParseReport|AppRetrieval)'` (pass)
 - Slice 3: `git diff --check` (pass)
+- Slice 4: `make check` (pass)
+- Slice 4: `make test` (pass)
+- Slice 4: `make docs-check` (pass)
+- Slice 4: `make verify` (pass, 0 lint issues)
+- Slice 4: `go test -race ./...` (pass)
+- Slice 4: `go test -count=1 ./internal/acta -run 'Test(Migrator|ParseMigration|AppMigrates|Legacy)'` (pass)
+- Slice 4: `systemd-analyze verify assets/systemd/user/acta.service assets/systemd/user/acta.socket assets/systemd/user/acta-verify.service assets/systemd/user/acta-verify.timer` (pass)
+- Slice 4: `git diff --check` (pass)
 
 ## Deployment state
 
@@ -127,3 +135,6 @@ None recorded.
   `feat/typed-activity-retrieval` to `dev`.
 - 2026-09-03: Verified pull request `#9` merged into `dev`, delivered Slice 3,
   and activated Slice 4.
+- 2026-09-03: Completed Slice 4 implementation, documentation, and validation;
+  moved it to review with installation, rehearsal, writer freeze, and live
+  migration still pending.
