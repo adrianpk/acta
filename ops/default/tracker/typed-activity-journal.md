@@ -138,3 +138,5 @@ None recorded.
 - 2026-09-03: Completed Slice 4 implementation, documentation, and validation;
   moved it to review with installation, rehearsal, writer freeze, and live
   migration still pending.
+- 2026-09-03: Opened pull request `#10` from
+  `feat/typed-activity-migration` to `dev`.
